@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { LayoutDashboard, ClipboardList, Settings2, TrendingUp, ShieldCheck, Sparkles, ExternalLink, Network } from 'lucide-react'
+import { LayoutDashboard, ClipboardList, Settings2, TrendingUp, ShieldCheck, Sparkles, ExternalLink, Network, MoreHorizontal, X } from 'lucide-react'
 import { Persona, Property } from './api'
 import Dashboard from './components/Dashboard'
 import BookingsList from './components/BookingsList'
@@ -29,6 +29,13 @@ const PERSONAS: { id: Persona; label: string }[] = [
 
 type BookingWorkspaceMode = { kind: 'new'; property?: Property } | { kind: 'edit'; id: string }
 
+// Mobile bottom tab bar shows only the reference app's 3 core screens
+// (Dashboard/Bookings/Admin - see docs/SPEC.md's "bottom tab nav on mobile"
+// UX principle); the 4 Databricks-bonus tabs live behind "More" so the core
+// workflow keeps its intended one-tap prominence on a phone.
+const CORE_TABS: TabId[] = ['overview', 'bookings', 'admin']
+const MORE_TABS: TabId[] = ['forecast', 'governance', 'genie', 'architecture']
+
 function Logo() {
   return (
     <div className="flex items-center gap-3">
@@ -45,7 +52,7 @@ export default function App() {
   const [view, setView] = useState<TabId>(BLUEPRINT.tabs[0]?.id ?? 'overview')
   const [persona, setPersona] = useState<Persona>('exec')
   const [cfg, setCfg] = useState<any>({})
-  const [navOpen, setNavOpen] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(false)
   const [workspace, setWorkspace] = useState<BookingWorkspaceMode | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
 
@@ -69,13 +76,15 @@ export default function App() {
     }
   }
 
+  const goTo = (id: TabId) => { setView(id); setWorkspace(null); setMoreOpen(false) }
+
   const navButtons = () => (
     <nav className="flex items-center gap-1 overflow-x-auto">
       {BLUEPRINT.tabs.map(t => {
         const Icon = ICONS[t.id]
         const active = view === t.id && !workspace
         return (
-          <button key={t.id} onClick={() => { setView(t.id); setWorkspace(null); setNavOpen(false) }}
+          <button key={t.id} onClick={() => goTo(t.id)}
             aria-current={active ? 'page' : undefined}
             className={`flex items-center gap-1.5 px-3 py-2.5 text-[13px] font-semibold uppercase tracking-wide whitespace-nowrap
               border-b-2 transition-colors
@@ -85,6 +94,58 @@ export default function App() {
         )
       })}
     </nav>
+  )
+
+  // Bottom tab bar (mobile only) - the reference app's exact pattern for its
+  // 3 core screens; "More" is our own addition to reach the 4 bonus tabs.
+  const bottomTabBar = () => {
+    const isMoreActive = MORE_TABS.includes(view) && !workspace
+    return (
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white border-t border-brand-border flex items-stretch"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+        {CORE_TABS.map(id => {
+          const Icon = ICONS[id]
+          const label = BLUEPRINT.tabs.find(t => t.id === id)?.label ?? id
+          const active = view === id && !workspace
+          return (
+            <button key={id} onClick={() => goTo(id)} aria-current={active ? 'page' : undefined}
+              className={`flex-1 min-h-[56px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-medium
+                ${active ? 'text-brand' : 'text-gray-500'}`}>
+              <Icon size={20} />{label}
+            </button>
+          )
+        })}
+        <button onClick={() => setMoreOpen(true)} aria-haspopup="true" aria-expanded={moreOpen}
+          className={`flex-1 min-h-[56px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-medium
+            ${isMoreActive ? 'text-brand' : 'text-gray-500'}`}>
+          <MoreHorizontal size={20} />More
+        </button>
+      </nav>
+    )
+  }
+
+  const moreSheet = () => (
+    <div className="md:hidden fixed inset-0 z-40 flex items-end bg-black/40" role="dialog" aria-modal="true" onClick={() => setMoreOpen(false)}>
+      <div className="bg-white w-full rounded-t-lg pb-[calc(1rem+env(safe-area-inset-bottom))] fadein" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-brand-border">
+          <span className="text-sm font-semibold text-brand-ink">More</span>
+          <button onClick={() => setMoreOpen(false)} aria-label="Close" className="w-11 h-11 -m-2 flex items-center justify-center text-gray-400"><X size={18} /></button>
+        </div>
+        <div className="p-2">
+          {MORE_TABS.map(id => {
+            const Icon = ICONS[id]
+            const label = BLUEPRINT.tabs.find(t => t.id === id)?.label ?? id
+            return (
+              <button key={id} onClick={() => goTo(id)}
+                className={`w-full flex items-center gap-3 px-3 min-h-[48px] rounded text-sm font-medium
+                  ${view === id && !workspace ? 'text-brand bg-brand-bg' : 'text-brand-ink'}`}>
+                <Icon size={18} /> {label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    </div>
   )
 
   const personaSwitch = () => (
@@ -126,19 +187,13 @@ export default function App() {
           <div className="flex items-center gap-3">
             <div className="hidden sm:block">{brandLinks()}</div>
             {personaSwitch()}
-            <button className="md:hidden p-2 -mr-1 text-gray-500" aria-label="Toggle navigation menu"
-              aria-expanded={navOpen} aria-controls="acc-nav" onClick={() => setNavOpen(o => !o)}>
-              <span className="block w-5 h-0.5 bg-current mb-1" />
-              <span className="block w-5 h-0.5 bg-current mb-1" />
-              <span className="block w-5 h-0.5 bg-current" />
-            </button>
           </div>
         </div>
-        <div id="acc-nav" className={`${navOpen ? 'block' : 'hidden'} md:block border-t border-brand-border px-2 sm:px-6`}>
+        <div className="hidden md:block border-t border-brand-border px-2 sm:px-6">
           {navButtons()}
         </div>
       </header>
-      <main id="acc-main" className="flex-1 overflow-y-auto p-4 sm:p-6">
+      <main id="acc-main" className="flex-1 overflow-y-auto p-4 sm:p-6 pb-20 md:pb-6">
         {workspace ? (
           <BookingWorkspace mode={workspace} onDone={closeWorkspace} onBack={() => setWorkspace(null)} />
         ) : (
@@ -148,6 +203,8 @@ export default function App() {
           </>
         )}
       </main>
+      {bottomTabBar()}
+      {moreOpen && moreSheet()}
     </div>
   )
 }

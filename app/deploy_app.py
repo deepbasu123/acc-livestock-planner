@@ -142,13 +142,22 @@ def grant_sp(profile, catalog, warehouse, genie_id, sp):
     import sys as _s
     _s.path.insert(0, str(Path(__file__).resolve().parent.parent / "sql"))
     import dbsql
+    # The app writes to acc_counterparty/acc_reference (master data admin) and
+    # acc_booking/acc_audit (booking CRUD + history); acc_feedlot and acc_gold
+    # are read-only from the app's perspective. Forgetting MODIFY here is a
+    # real failure mode: reads all succeed (fooling a quick smoke test) while
+    # every create/update/delete/duplicate call 500s in production.
+    ALL_SCHEMAS = ["acc_feedlot", "acc_counterparty", "acc_reference", "acc_booking", "acc_audit", "acc_gold"]
+    WRITE_SCHEMAS = ["acc_counterparty", "acc_reference", "acc_booking", "acc_audit"]
     grants = [
         f"GRANT USE CATALOG ON CATALOG {catalog} TO `{sp}`",
     ]
-    for s in ["acc_feedlot", "acc_counterparty", "acc_reference", "acc_booking", "acc_audit", "acc_gold"]:
+    for s in ALL_SCHEMAS:
         grants.append(f"GRANT USE SCHEMA ON SCHEMA {catalog}.{s} TO `{sp}`")
         grants.append(f"GRANT SELECT ON SCHEMA {catalog}.{s} TO `{sp}`")
-    grants.append(f"GRANT EXECUTE ON SCHEMA {catalog}.gold TO `{sp}`")
+    for s in WRITE_SCHEMAS:
+        grants.append(f"GRANT MODIFY ON SCHEMA {catalog}.{s} TO `{sp}`")
+    grants.append(f"GRANT EXECUTE ON SCHEMA {catalog}.acc_gold TO `{sp}`")
     for g in grants:
         try:
             dbsql.run(g, catalog=None, quiet=True)

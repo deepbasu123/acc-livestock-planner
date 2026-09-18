@@ -23,7 +23,12 @@ Creek) and **BVFL** (Burnett Valley):
   to a name.
 - **Booking detail** — view/edit, **Duplicate** (copies the booking, resets status
   to Draft), soft **Delete** (never hard-deleted), and a full **change history**
-  (append-only audit log of create/update/delete/duplicate with old + new values).
+  (a log of create/update/delete/duplicate events with old + new values, written
+  by the app on every mutation; nothing in the UI ever issues an `UPDATE` or
+  `DELETE` against it. Real immutability would additionally need to restrict UC
+  grants so no identity holds `UPDATE`/`DELETE` on the table - Unity Catalog's
+  `MODIFY` privilege doesn't split those out separately, so that's a follow-up,
+  not something this demo enforces at the storage layer today).
 - **Master Data** — manage the seven dropdown lists used on the booking form
   (Agents, Vendor Properties, Payees, Programs, Weigh Points, Origins, Buyers):
   add, rename, activate/deactivate, delete.
@@ -57,7 +62,9 @@ acc_feedlot       feedlots (capacity/location — a Databricks-only addition,
 acc_counterparty  agents, vendors, payees, buyers
 acc_reference     programs, weigh_points, origins
 acc_booking       cattle_bookings — the hero table, one row per booking
-acc_audit         booking_history — append-only, never updated or deleted
+acc_audit         booking_history — the app only ever INSERTs new rows into
+                  this table (see "the governance / persona demo" below for
+                  what is and isn't enforced at the Unity Catalog layer)
 acc_gold          booking_expanded (every FK resolved to a name) + supporting
                   views: feedlot_capacity_weekly, vendor_scorecard,
                   agent_performance, price_trend_weekly

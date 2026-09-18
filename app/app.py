@@ -41,6 +41,15 @@ if os.path.isdir(FRONTEND):
 
     @app.get("/{full_path:path}")
     def spa(full_path: str):
+        # Vite copies everything under frontend/public/ (logo.png, favicon.png,
+        # ...) to the root of dist/ verbatim, not into dist/assets/. Serve those
+        # real files directly; only fall back to index.html for actual SPA
+        # routes. Without this check every request - including for the ACC
+        # logo - silently served the SPA shell instead (200 text/html, broken
+        # <img>), since this catch-all used to return index.html unconditionally.
+        candidate = os.path.normpath(os.path.join(FRONTEND, full_path))
+        if (full_path and candidate.startswith(FRONTEND) and os.path.isfile(candidate)):
+            return FileResponse(candidate)
         idx = os.path.join(FRONTEND, "index.html")
         if os.path.exists(idx):
             return FileResponse(idx)

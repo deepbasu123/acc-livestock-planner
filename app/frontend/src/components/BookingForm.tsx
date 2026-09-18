@@ -32,7 +32,7 @@ export function bookingToInput(b: BookingExpanded): BookingInput {
   }
 }
 
-export default function BookingForm({ initial, initialProperty, lookups, submitLabel = 'Save',
+export default function BookingForm({ initial, initialProperty, lookups,   submitLabel = 'Save',
   onCancel, onSubmit, onSubmitAndAddAnother, busy, error }: {
   initial?: BookingInput | null
   initialProperty?: Property
@@ -40,7 +40,10 @@ export default function BookingForm({ initial, initialProperty, lookups, submitL
   submitLabel?: string
   onCancel?: () => void
   onSubmit: (values: BookingInput) => void | Promise<void>
-  onSubmitAndAddAnother?: (values: BookingInput) => void | Promise<void>
+  // Returns true/undefined on success, false on failure - the form is only
+  // reset on success, so a failed save (e.g. a 500) never silently discards
+  // what the user typed.
+  onSubmitAndAddAnother?: (values: BookingInput) => boolean | void | Promise<boolean | void>
   busy?: boolean
   error?: string
 }) {
@@ -74,7 +77,8 @@ export default function BookingForm({ initial, initialProperty, lookups, submitL
   const handleSave = async () => { if (validate()) await onSubmit(values) }
   const handleSaveAndNew = async () => {
     if (!validate() || !onSubmitAndAddAnother) return
-    await onSubmitAndAddAnother(values)
+    const result = await onSubmitAndAddAnother(values)
+    if (result === false) return // save failed - keep the user's entered data on screen
     setValues(makeEmpty(values.property))
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }

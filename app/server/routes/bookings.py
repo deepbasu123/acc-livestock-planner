@@ -5,7 +5,7 @@ import datetime as dt
 import json
 import uuid
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 from ..sql import run, one
 from ..config import CATALOG
@@ -21,6 +21,20 @@ FL = f"{CATALOG}.acc_feedlot"
 PROPERTIES = ["BPFL", "Opal Ck", "BVFL"]
 STATUSES = ["Draft", "Confirmed", "Cancelled"]
 APP_USER = ("ACC Livestock Planner", "app@accbeef.net.au")
+
+
+def _actor(request: Request) -> tuple[str, str]:
+    """Real caller identity when running as a Databricks App: the platform's
+    reverse proxy injects X-Forwarded-* headers with the signed-in user's
+    identity (see https://docs.databricks.com/aws/en/dev-tools/databricks-apps/http-headers).
+    Falls back to a generic app identity locally, where those headers aren't
+    present (the reference app has no login - see docs/SPEC.md sec 5 - so this
+    is strictly an improvement over a hardcoded actor, not a permissions gate)."""
+    email = request.headers.get("x-forwarded-email")
+    name = request.headers.get("x-forwarded-preferred-username") or email
+    if email:
+        return (name or email, email)
+    return APP_USER
 
 FIELDS = ["property", "status", "week_number", "week_commencing", "head_count", "delivery_day",
           "agent_id", "vendor_id", "payee_id", "grid_text", "program", "price_per_kg", "price_variation",
@@ -89,7 +103,14 @@ def lookups():
 
 
 @router.get("/bookings/{booking_id}")
-def get_booking(booking_id: str, persona: str = "exec"):
+def get_booking(booking_id: str):
+    """Always returns unmasked pricing, deliberately - this endpoint feeds the
+    edit form (there are no per-field write permissions in the reference app;
+    see docs/SPEC.md sec 5 "no user roles or permissions for the prototype").
+    If it honoured a client-supplied persona, a persona without commercial
+    visibility would submit a masked/blank price back on save and silently
+    overwrite the real one. The persona-masking demo lives in the read-only
+    Bookings list and Governance tab instead, via list_bookings() below."""
     b = one(f"SELECT * FROM {G}.booking_expanded WHERE id = {_q(booking_id)}")
     if not b:
         raise HTTPException(404, "Booking not found")
@@ -134,49 +155,54 @@ def _validate(b: BookingIn):
 
 
 @router.post("/bookings")
-def create_booking(req: BookingIn):
+def create_booking(req: BookingIn, request: Request):
     _validate(req)
+    actor = _actor(request)
     booking_id = str(uuid.uuid4())
     now = _now()
     data = req.model_dump()
     cols = ["id", *FIELDS, "created_by", "created_by_email", "created_at", "updated_at"]
-    vals = [_q(booking_id), *[_q(data[f]) for f in FIELDS], _q(APP_USER[0]), _q(APP_USER[1]), _q(now), _q(now)]
+    vals = [_q(booking_id), *[_q(data[f]) for f in FIELDS], _q(actor[0]), _q(actor[1]), _q(now), _q(now)]
     run(f"INSERT INTO {BK}.cattle_bookings ({', '.join(cols)}) VALUES ({', '.join(vals)})")
     new_row = one(f"SELECT * FROM {G}.booking_expanded WHERE id = {_q(booking_id)}")
-    _record_history(booking_id, "create", *APP_USER, None, new_row)
+    _record_history(booking_id, "create", *actor, None, new_row)
     return new_row
 
 
 @router.patch("/bookings/{booking_id}")
-def update_booking(booking_id: str, req: BookingIn):
+def update_booking(booking_id: str, req: BookingIn, request: Request):
     _validate(req)
+    actor = _actor(request)
     previous = one(f"SELECT * FROM {G}.booking_expanded WHERE id = {_q(booking_id)}")
     if not previous:
         raise HTTPException(404, "Booking not found")
     data = req.model_dump()
     sets = [f"{f} = {_q(data[f])}" for f in FIELDS]
-    sets += [f"modified_by = {_q(APP_USER[0])}", f"modified_by_email = {_q(APP_USER[1])}", f"updated_at = {_q(_now())}"]
+    sets += [f"modified_by = {_q(actor[0])}", f"modified_by_email = {_q(actor[1])}", f"updated_at = {_q(_now())}"]
     run(f"UPDATE {BK}.cattle_bookings SET {', '.join(sets)} WHERE id = {_q(booking_id)}")
     new_row = one(f"SELECT * FROM {G}.booking_expanded WHERE id = {_q(booking_id)}")
-    _record_history(booking_id, "update", *APP_USER, previous, new_row)
+    _record_history(booking_id, "update", *actor, previous, new_row)
     return new_row
 
 
 @router.delete("/bookings/{booking_id}")
-def delete_booking(booking_id: str):
+def delete_booking(booking_id: str, request: Request):
     """Soft delete only - sets deleted_at, never removes the row."""
+    actor = _actor(request)
     previous = one(f"SELECT * FROM {G}.booking_expanded WHERE id = {_q(booking_id)}")
     if not previous:
         raise HTTPException(404, "Booking not found")
     now = _now()
     run(f"UPDATE {BK}.cattle_bookings SET deleted_at = {_q(now)}, updated_at = {_q(now)} WHERE id = {_q(booking_id)}")
-    _record_history(booking_id, "delete", *APP_USER, None, {"deleted_at": now})
+    deleted_row = one(f"SELECT * FROM {BK}.cattle_bookings WHERE id = {_q(booking_id)}")
+    _record_history(booking_id, "delete", *actor, previous, deleted_row)
     return {"ok": True}
 
 
 @router.post("/bookings/{booking_id}/duplicate")
-def duplicate_booking(booking_id: str):
+def duplicate_booking(booking_id: str, request: Request):
     """Copies all business fields, resets status to Draft, strips audit/identity fields."""
+    actor = _actor(request)
     source = one(f"SELECT * FROM {G}.booking_expanded WHERE id = {_q(booking_id)}")
     if not source:
         raise HTTPException(404, "Booking not found")
@@ -185,8 +211,8 @@ def duplicate_booking(booking_id: str):
     data = {f: source.get(f) for f in FIELDS}
     data["status"] = "Draft"
     cols = ["id", *FIELDS, "created_by", "created_by_email", "created_at", "updated_at"]
-    vals = [_q(new_id), *[_q(data[f]) for f in FIELDS], _q(APP_USER[0]), _q(APP_USER[1]), _q(now), _q(now)]
+    vals = [_q(new_id), *[_q(data[f]) for f in FIELDS], _q(actor[0]), _q(actor[1]), _q(now), _q(now)]
     run(f"INSERT INTO {BK}.cattle_bookings ({', '.join(cols)}) VALUES ({', '.join(vals)})")
     new_row = one(f"SELECT * FROM {G}.booking_expanded WHERE id = {_q(new_id)}")
-    _record_history(new_id, "duplicate", *APP_USER, {"duplicated_from": booking_id}, new_row)
+    _record_history(new_id, "duplicate", *actor, source, new_row)
     return new_row

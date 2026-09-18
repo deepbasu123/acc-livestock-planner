@@ -60,7 +60,7 @@ export default function BookingWorkspace({ mode, onDone, onBack }:
     <div className="space-y-4 fadein max-w-3xl">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2">
-          <button onClick={onBack} className="p-1.5 text-gray-400 hover:text-brand-ink" aria-label="Back to bookings"><ArrowLeft size={18} /></button>
+          <button onClick={onBack} className="w-11 h-11 -m-1 flex items-center justify-center text-gray-400 hover:text-brand-ink" aria-label="Back to bookings"><ArrowLeft size={18} /></button>
           <div>
             <h2 className="text-lg font-semibold text-brand-ink" style={{ fontFamily: "'Spectral', serif" }}>{title}</h2>
             <p className="text-xs text-gray-500">{subtitle}</p>
@@ -89,7 +89,8 @@ export default function BookingWorkspace({ mode, onDone, onBack }:
                 <span className="font-semibold text-brand-ink capitalize">{h.action}</span>
                 <span className="text-gray-400">by {h.changed_by || 'system'} · {formatDateTime(h.changed_at)}</span>
               </div>
-              {h.old_data && <div className="text-gray-400 mt-0.5 truncate">was: {h.old_data}</div>}
+              {h.old_data && <div className="text-gray-400 mt-0.5 truncate" title={h.old_data}>old: {h.old_data}</div>}
+              {h.new_data && <div className="text-gray-500 mt-0.5 truncate" title={h.new_data}>new: {h.new_data}</div>}
             </div>
           ))}
         </div>
@@ -114,8 +115,10 @@ export default function BookingWorkspace({ mode, onDone, onBack }:
         }}
         onSubmitAndAddAnother={mode.kind === 'new' ? async (values) => {
           setBusy(true); setError('')
-          try { await api.createBooking(values) } catch (e) { setError(String(e)) }
+          let ok = true
+          try { await api.createBooking(values) } catch (e) { setError(String(e)); ok = false }
           setBusy(false)
+          return ok
         } : undefined}
       />
     </div>

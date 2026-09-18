@@ -80,8 +80,10 @@ function MasterPanel({ table }: { table: MasterTable }) {
                 <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer">
                   <input type="checkbox" checked={row.active} onChange={() => toggleActive(row)} className="accent-brand" /> Active
                 </label>
-                <button onClick={() => { setEditing(row); setName(row.name); setOpen(true) }} aria-label={`Rename ${row.name}`} className="text-gray-400 hover:text-brand-ink p-1"><Pencil size={15} /></button>
-                <button onClick={() => remove(row)} aria-label={`Delete ${row.name}`} className="text-gray-400 hover:text-bad-text p-1"><Trash2 size={15} /></button>
+                <button onClick={() => { setEditing(row); setName(row.name); setOpen(true) }} aria-label={`Rename ${row.name}`}
+                  className="text-gray-400 hover:text-brand-ink w-11 h-11 -my-2 flex items-center justify-center"><Pencil size={16} /></button>
+                <button onClick={() => remove(row)} aria-label={`Delete ${row.name}`}
+                  className="text-gray-400 hover:text-bad-text w-11 h-11 -my-2 flex items-center justify-center"><Trash2 size={16} /></button>
               </div>
             </li>
           ))}

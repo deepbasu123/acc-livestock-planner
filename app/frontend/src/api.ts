@@ -83,7 +83,8 @@ export const api = {
   // Bookings
   bookings: (persona: Persona = 'exec'): Promise<{ bookings: BookingExpanded[]; commercial_visible: boolean }> =>
     get(`/api/bookings?persona=${PERSONA_WIRE[persona]}`),
-  booking: (id: string, persona: Persona = 'exec') => get(`/api/bookings/${id}?persona=${PERSONA_WIRE[persona]}`),
+  // Always unmasked - this feeds the edit form. See bookings.py get_booking().
+  booking: (id: string) => get(`/api/bookings/${id}`),
   bookingHistory: (id: string) => get(`/api/bookings/${id}/history`),
   lookups: () => get('/api/bookings/lookups'),
   createBooking: (b: BookingInput): Promise<BookingExpanded> => send('POST', '/api/bookings', b),
