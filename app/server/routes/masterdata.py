@@ -1,0 +1,93 @@
+"""Master data CRUD: agents, vendors, payees, programs, weigh_points, origins, buyers.
+
+Mirrors the reference app's admin screen exactly - each list has id/name/active,
+only active rows should populate booking-form dropdowns, and any row can be
+renamed, (de)activated or deleted (historical bookings keep their FK reference
+even if the master row is later deactivated or removed).
+"""
+import datetime as dt
+import uuid
+
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
+from ..sql import run
+from ..config import CATALOG
+
+router = APIRouter()
+SCHEMA = f"{CATALOG}.acc_counterparty"
+REF_SCHEMA = f"{CATALOG}.acc_reference"
+
+TABLE_SCHEMA = {
+    "agents": SCHEMA, "vendors": SCHEMA, "payees": SCHEMA, "buyers": SCHEMA,
+    "programs": REF_SCHEMA, "weigh_points": REF_SCHEMA, "origins": REF_SCHEMA,
+}
+LABELS = {
+    "agents": "Agents", "vendors": "Vendor Properties", "payees": "Payees", "buyers": "Buyers",
+    "programs": "Programs", "weigh_points": "Weigh Points", "origins": "Origins",
+}
+
+
+def _q(s):
+    return "'" + str(s).replace("'", "''") + "'"
+
+
+def _table(name: str) -> str:
+    if name not in TABLE_SCHEMA:
+        raise HTTPException(404, f"Unknown master table '{name}'")
+    return f"{TABLE_SCHEMA[name]}.{name}"
+
+
+@router.get("/masterdata")
+def list_tables():
+    return {"tables": [{"id": t, "label": LABELS[t]} for t in TABLE_SCHEMA]}
+
+
+@router.get("/masterdata/{table}")
+def list_rows(table: str, active_only: bool = False):
+    t = _table(table)
+    where = "WHERE active = true" if active_only else ""
+    rows = run(f"SELECT id, name, active, created_at, updated_at FROM {t} {where} ORDER BY name")
+    return {"table": table, "label": LABELS[table], "rows": rows}
+
+
+class CreateRow(BaseModel):
+    name: str
+
+
+@router.post("/masterdata/{table}")
+def create_row(table: str, req: CreateRow):
+    t = _table(table)
+    if not req.name.strip():
+        raise HTTPException(400, "name is required")
+    row_id = str(uuid.uuid4())
+    now = dt.datetime.utcnow().isoformat()
+    run(f"INSERT INTO {t} (id, name, active, created_at, updated_at) "
+        f"VALUES ({_q(row_id)}, {_q(req.name.strip())}, true, {_q(now)}, {_q(now)})")
+    return {"id": row_id, "name": req.name.strip(), "active": True}
+
+
+class UpdateRow(BaseModel):
+    name: str | None = None
+    active: bool | None = None
+
+
+@router.patch("/masterdata/{table}/{row_id}")
+def update_row(table: str, row_id: str, req: UpdateRow):
+    t = _table(table)
+    sets = []
+    if req.name is not None:
+        sets.append(f"name = {_q(req.name.strip())}")
+    if req.active is not None:
+        sets.append(f"active = {str(req.active).lower()}")
+    if not sets:
+        raise HTTPException(400, "nothing to update")
+    sets.append(f"updated_at = {_q(dt.datetime.utcnow().isoformat())}")
+    run(f"UPDATE {t} SET {', '.join(sets)} WHERE id = {_q(row_id)}")
+    return {"ok": True}
+
+
+@router.delete("/masterdata/{table}/{row_id}")
+def delete_row(table: str, row_id: str):
+    t = _table(table)
+    run(f"DELETE FROM {t} WHERE id = {_q(row_id)}")
+    return {"ok": True}

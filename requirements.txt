@@ -1,0 +1,5 @@
+# Deployer + data generator dependencies (run locally / in CI).
+# The Databricks CLI must also be installed and on PATH.
+pandas>=2.0
+numpy>=1.24
+pyarrow>=14.0

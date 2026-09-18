@@ -1,0 +1,14 @@
+{
+  "archetype": "ops_console",
+  "nav_pattern": "top",
+  "tabs": [
+    { "id": "overview",     "label": "Dashboard" },
+    { "id": "bookings",     "label": "Bookings" },
+    { "id": "admin",        "label": "Master Data" },
+    { "id": "forecast",     "label": "Capacity Forecast" },
+    { "id": "governance",   "label": "Governance" },
+    { "id": "genie",        "label": "Ask ACC" },
+    { "id": "architecture", "label": "Architecture" }
+  ],
+  "_note": "hand-tuned after discovering the real reference app spec (docs/DATABRICKS-HANDOFF.md) - entity360/documents dropped, bookings+admin added to match the exact CRUD workflow; apply_blueprint.py's registry doesn't cover these ids, so blueprint.ts is now hand-maintained."
+}

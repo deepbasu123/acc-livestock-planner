@@ -1,0 +1,32 @@
+{
+  "_source": "https://www.accbeef.net.au",
+  "_reviewed": true,
+  "customer_name": "Australian Country Choice",
+  "app_short": "ACC",
+  "app_name_line1": "ACC",
+  "app_name_line2": "Livestock Planner",
+  "header_subtitle": "unified across Feedlot Master Data, Bookings, Weighbridge Receival, Suppliers & Transport",
+  "colors": {
+    "primary": "#002A54",
+    "dark": "#00172E",
+    "ink": "#252525",
+    "bg": "#F5F8FA",
+    "card": "#FFFFFF",
+    "border": "#E2E7ED"
+  },
+  "font": "Barlow Semi Condensed",
+  "logo_path": "/Users/deep.basu/git/demos/acc-brand-evidence/acc-logo.png",
+  "favicon_path": "/Users/deep.basu/git/demos/acc-brand-evidence/acc-logo.png",
+  "_extra_not_read_by_theme_py": {
+    "accent_gold": "#C9A227",
+    "accent_gold_fill": "#F4C430",
+    "success": "#28A745",
+    "success_text": "#1E7E34",
+    "warning": "#FFC107",
+    "warning_text": "#B8860B",
+    "danger": "#DC3545",
+    "danger_text": "#BD2130",
+    "display_font": "Spectral",
+    "note": "primary/dark/ink/bg/card/border/font consumed by theme.py; the rest applied by hand in tailwind.config.js + index.css per design-fidelity.md"
+  }
+}

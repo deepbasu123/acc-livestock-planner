@@ -1,0 +1,23 @@
+-- Optional: persona groups for the ABAC masking demo.
+-- The column mask in 03_classification_abac.sql gates commercial pricing
+-- fields on is_member('acc_exec' | 'acc_procurement'). Until you belong to
+-- one of these groups, masked columns return REDACTED - which is the point
+-- of the demo, but you'll want to be in acc_exec to see everything.
+--
+-- Groups can't be created in SQL. Create them once via the CLI (workspace-local
+-- groups are fine), then add yourself and the app's service principal:
+--
+--   databricks groups create acc_exec        --profile $ACC_PROFILE
+--   databricks groups create acc_procurement --profile $ACC_PROFILE
+--   databricks groups create acc_operations  --profile $ACC_PROFILE
+--
+-- Add members in the Admin Console (Workspace settings -> Identity and access ->
+-- Groups), or via the SCIM API. The app's service principal should be in
+-- acc_exec so the app shows unmasked data for the Executive persona.
+--
+-- Persona policy enforced by the mask:
+--   acc_exec        - sees everything
+--   acc_procurement - sees pricing (price_per_kg, price_variation, buyer_payee_details)
+--   acc_operations  - sees booking/logistics fields; pricing is masked
+--   (no group)      - all governed columns masked
+SELECT 'Create acc_exec / acc_procurement / acc_operations via the CLI, then add members.' AS reminder;

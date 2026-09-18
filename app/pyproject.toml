@@ -1,0 +1,14 @@
+[project]
+name = "acc-livestock-planner"
+version = "0.1.0"
+description = "ACC Livestock Procurement Planner - Databricks App"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.27",
+    "databricks-sdk>=0.30",
+    "openai>=1.40",
+    "pydantic>=2.6",
+    "python-multipart>=0.0.9",
+    "openpyxl>=3.1",
+]

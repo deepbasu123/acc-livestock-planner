@@ -1,0 +1,20 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+html, body, #root { height: 100%; margin: 0; }
+body { background: #F5F8FA; color: #252525; font-family: 'Barlow Semi Condensed', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+* { box-sizing: border-box; }
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-thumb { background: #cbd2dc; border-radius: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+@keyframes fadein { from { opacity: 0; transform: translateY(6px);} to {opacity:1; transform:none;} }
+.fadein { animation: fadein .3s ease both; }
+.spin { animation: spin 0.9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg);} }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+.focus\:not-sr-only:focus { position: static; width: auto; height: auto; padding: inherit; margin: inherit; overflow: visible; clip: auto; white-space: normal; }
+.acc-input {
+  width: 100%; background: #fff; border: 1px solid #E2E7ED; border-radius: 4px;
+  padding: 0.5rem 0.65rem; font-size: 0.875rem; color: #252525; font-family: inherit;
+}
+.acc-input:focus { outline: none; border-color: #002A54; box-shadow: 0 0 0 3px rgba(0,42,84,0.1); }

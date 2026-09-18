@@ -1,0 +1,21 @@
+command:
+  - "python"
+  - "-m"
+  - "uvicorn"
+  - "app:app"
+  - "--host"
+  - "0.0.0.0"
+  - "--port"
+  - "8000"
+
+env:
+  - name: ACC_CATALOG
+    value: "deep_test_1_catalog"
+  - name: ACC_WAREHOUSE
+    value: "24a85e8a3c13261d"
+  - name: ACC_GENIE_SPACE
+    value: "01f1b334c35a158aa9ff654459f8cea4"
+  - name: ACC_DASHBOARD
+    value: "01f1b334cb4d1070a96ebfd4e8fab051"
+  - name: ACC_LLM_MODEL
+    value: "databricks-claude-sonnet-4-6"
