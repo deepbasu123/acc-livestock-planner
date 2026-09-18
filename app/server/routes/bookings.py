@@ -148,6 +148,8 @@ class BookingIn(BaseModel):
 def _validate(b: BookingIn):
     if b.property not in PROPERTIES:
         raise HTTPException(400, "Destination Feedlot is required")
+    if b.status not in STATUSES:
+        raise HTTPException(400, f"status must be one of {STATUSES}")
     if not b.week_number and not b.week_commencing:
         raise HTTPException(400, "Week is required")
     if not b.head_count or b.head_count <= 0:
