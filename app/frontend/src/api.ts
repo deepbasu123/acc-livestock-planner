@@ -93,8 +93,14 @@ export const api = {
   duplicateBooking: (id: string): Promise<BookingExpanded> => send('POST', `/api/bookings/${id}/duplicate`),
 
   // Master data
-  masterList: (table: MasterTable, activeOnly = false): Promise<{ rows: MasterRow[] }> =>
-    get(`/api/masterdata/${table}${activeOnly ? '?active_only=true' : ''}`),
+  // The Databricks SQL Statement API returns every cell as a string (including
+  // booleans - "true"/"false"), and "false" is truthy in JS. Coerce here, once,
+  // rather than risk a `row.active ? ... : ...` silently misreading an inactive
+  // row as active everywhere this list is consumed.
+  masterList: async (table: MasterTable, activeOnly = false): Promise<{ rows: MasterRow[] }> => {
+    const r = await get(`/api/masterdata/${table}${activeOnly ? '?active_only=true' : ''}`)
+    return { ...r, rows: r.rows.map((row: any) => ({ ...row, active: row.active === true || row.active === 'true' })) }
+  },
   masterAdd: (table: MasterTable, name: string) => send('POST', `/api/masterdata/${table}`, { name }),
   masterUpdate: (table: MasterTable, id: string, patch: { name?: string; active?: boolean }) =>
     send('PATCH', `/api/masterdata/${table}/${id}`, patch),
