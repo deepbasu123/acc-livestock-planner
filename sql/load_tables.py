@@ -5,7 +5,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 import dbsql
 
-CATALOG = os.environ.get("ACC_CATALOG", "deep_test_1_catalog")
+CATALOG = os.environ.get("ACC_CATALOG", "")
 VOL = f"/Volumes/{CATALOG}/acc_gold/staging/load"
 OUT = Path(__file__).parent.parent / "data_gen" / "out"
 

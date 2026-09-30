@@ -18,6 +18,6 @@ env:
   - name: ACC_PG_SCHEMA
     value: "acc"
   - name: ACC_CATALOG
-    value: "deep_test_1_catalog"
+    value: ""
   - name: ACC_LLM_MODEL
     value: "databricks-claude-sonnet-4-6"

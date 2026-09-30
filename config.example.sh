@@ -17,7 +17,7 @@ export ACC_WAREHOUSE="<your-warehouse-id>"
 # with no default storage root configured), point this at the workspace's
 # existing catalog instead - all six schemas below are prefixed "acc_" so they
 # won't collide with any other demo sharing that catalog.
-export ACC_CATALOG="deep_test_1_catalog"
+export ACC_CATALOG="main"
 
 # Workspace folder the Genie space, dashboard and app source live under.
 export ACC_PARENT="/Workspace/Shared/acc-livestock-planner"

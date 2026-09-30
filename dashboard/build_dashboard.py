@@ -5,7 +5,7 @@ import json, subprocess, uuid, os
 PROFILE = os.environ.get("ACC_PROFILE", "DEFAULT")
 WAREHOUSE = os.environ["ACC_WAREHOUSE"]
 PARENT = os.environ.get("ACC_PARENT", "/Workspace/Shared/acc-livestock-planner")
-CAT = os.environ.get("ACC_CATALOG", "deep_test_1_catalog")
+CAT = os.environ.get("ACC_CATALOG", "")
 NAVY = "#002A54"; GOLD = "#C9A227"; GREEN = "#1E7E34"; RED = "#DC3545"; AMBER = "#B8860B"; SLATE = "#6C757D"
 PALETTE = [NAVY, GOLD, GREEN, RED, AMBER, SLATE, "#4A90E2", "#8BA6C1"]
 

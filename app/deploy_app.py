@@ -214,7 +214,7 @@ def grant_sp(profile, catalog, warehouse, genie_id, sp):
 def main(profile=None, catalog=None, warehouse=None, genie_id=None, dashboard_id=None,
          llm_model=None, app_name=None, root=None, lakebase=None):
     profile = profile or os.environ.get("ACC_PROFILE", "DEFAULT")
-    catalog = catalog or os.environ.get("ACC_CATALOG", "deep_test_1_catalog")
+    catalog = catalog or os.environ.get("ACC_CATALOG", "")
     warehouse = warehouse or os.environ["ACC_WAREHOUSE"]
     genie_id = genie_id or os.environ.get("ACC_GENIE_SPACE", "")
     dashboard_id = dashboard_id or os.environ.get("ACC_DASHBOARD", "")

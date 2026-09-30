@@ -6,7 +6,7 @@ Usage:
     python3 dbsql.py --file path/to/file.sql      # runs statements split on ';' lines
     echo "SELECT 1" | python3 dbsql.py -
 
-Env overrides: ACC_PROFILE (default deep-test-1), ACC_WAREHOUSE (default warehouse id).
+Configure via config.sh / env: ACC_PROFILE, ACC_HOST, ACC_WAREHOUSE, ACC_CATALOG.
 """
 import json
 import os
@@ -16,10 +16,10 @@ import time
 import urllib.request
 import urllib.error
 
-PROFILE = os.environ.get("ACC_PROFILE", "deep-test-1")
-HOST = os.environ.get("ACC_HOST", "https://fevm-deep-test-1.cloud.databricks.com")
-WAREHOUSE_ID = os.environ.get("ACC_WAREHOUSE", "24a85e8a3c13261d")
-CATALOG = os.environ.get("ACC_CATALOG", "deep_test_1_catalog")
+PROFILE = os.environ.get("ACC_PROFILE", "DEFAULT")
+HOST = os.environ.get("ACC_HOST", "")
+WAREHOUSE_ID = os.environ.get("ACC_WAREHOUSE", "")
+CATALOG = os.environ.get("ACC_CATALOG", "")
 
 
 def token():

@@ -5,7 +5,7 @@ import json, subprocess, uuid, sys, os
 PROFILE = os.environ.get("ACC_PROFILE", "DEFAULT")
 WAREHOUSE = os.environ["ACC_WAREHOUSE"]
 PARENT = os.environ.get("ACC_PARENT", "/Workspace/Shared/acc-livestock-planner")
-CAT = os.environ.get("ACC_CATALOG", "deep_test_1_catalog")
+CAT = os.environ.get("ACC_CATALOG", "")
 
 
 def hid():

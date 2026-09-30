@@ -31,7 +31,7 @@ sys.path.insert(0, str(ROOT / "sql"))
 import dbsql  # noqa: E402  (reads ACC_* env)
 
 PROFILE = os.environ.get("ACC_PROFILE", "DEFAULT")
-CATALOG = os.environ.get("ACC_CATALOG", "deep_test_1_catalog")
+CATALOG = os.environ.get("ACC_CATALOG", "")
 WAREHOUSE = os.environ.get("ACC_WAREHOUSE", "")
 HOST = os.environ.get("ACC_HOST", "")
 PARENT = os.environ.get("ACC_PARENT", "/Workspace/Shared/acc-livestock-planner")
