@@ -1,16 +1,15 @@
 """Feedlot capacity forecast + AI capacity optimisation strategy.
 
 Derived entirely from cattle_bookings (there is no separate receival/turnoff
-system in the reference app) - an estimate, clearly labelled as such."""
+system in the reference app) - an estimate, clearly labelled as such. Reads the
+Lakebase gold views (see server/pg_bootstrap.py)."""
 from fastapi import APIRouter
 from pydantic import BaseModel
-from ..sql import run
+
+from .. import pg
 from ..llm import chat
-from ..config import CATALOG
 
 router = APIRouter()
-G = f"{CATALOG}.acc_gold"
-FL = f"{CATALOG}.acc_feedlot"
 
 
 def _band(util, target):
@@ -37,13 +36,19 @@ def _action(band, feedlot_name):
 
 @router.get("/capacity")
 def capacity(persona: str = "exec"):
-    weekly = run(f"""SELECT property, feedlot_name, week_start, head_booked, head_on_feed_est,
-        utilization_pct, total_capacity_head FROM {G}.feedlot_capacity_weekly ORDER BY week_start""")
-    feedlots = run(f"SELECT property, feedlot_name, total_capacity_head, target_utilization_pct FROM {FL}.feedlots ORDER BY property")
-    price = run(f"SELECT property, feedlot_name, week_start, avg_price_per_kg FROM {G}.price_trend_weekly ORDER BY week_start")
+    weekly = pg.query("""SELECT property, feedlot_name, week_start, head_booked, head_on_feed_est,
+        utilization_pct, total_capacity_head FROM feedlot_capacity_weekly ORDER BY week_start""")
+    feedlots = pg.query("SELECT property, feedlot_name, total_capacity_head, target_utilization_pct FROM feedlots ORDER BY property")
+    price = pg.query("SELECT property, feedlot_name, week_start, avg_price_per_kg FROM price_trend_weekly ORDER BY week_start")
 
-    latest_week = max((w["week_start"] for w in weekly), default=None)
-    latest_by_feedlot = {w["property"]: w for w in weekly if w["week_start"] == latest_week}
+    # Use each feedlot's own latest week. A global max week misses any feedlot
+    # that has no bookings in that exact week (Opal Ck often trails the others).
+    latest_by_feedlot = {}
+    for w in weekly:
+        p = w["property"]
+        prev = latest_by_feedlot.get(p)
+        if prev is None or str(w["week_start"] or "") > str(prev.get("week_start") or ""):
+            latest_by_feedlot[p] = w
 
     forecast = []
     for f in feedlots:
@@ -53,27 +58,28 @@ def capacity(persona: str = "exec"):
         band = _band(float(util) if util is not None else None, target)
         forecast.append({
             "property": f["property"], "feedlot_name": f["feedlot_name"],
-            "current_utilization_pct": util, "target_utilization_pct": target,
+            "current_utilization_pct": float(util) if util is not None else None,
+            "target_utilization_pct": target,
             "head_on_feed_est": lw.get("head_on_feed_est"), "total_capacity_head": f["total_capacity_head"],
             "band": band, "recommended_action": _action(band, f["feedlot_name"]),
         })
 
-    upcoming = run(f"""SELECT SUM(head_count) AS head FROM {G}.booking_expanded
-        WHERE status IN ('Draft','Confirmed') AND week_commencing > CURRENT_DATE()""")
-    upcoming_head = int(upcoming[0]["head"] or 0) if upcoming else 0
+    upcoming = pg.query("""SELECT SUM(head_count) AS head FROM booking_expanded
+        WHERE status IN ('Draft','Confirmed') AND week_commencing > CURRENT_DATE""")
+    upcoming_head = int(upcoming[0]["head"] or 0) if upcoming and upcoming[0]["head"] is not None else 0
 
     price_change_pct = None
     if len(price) > 8:
         by_week = {}
         for p in price:
-            by_week.setdefault(p["week_start"], []).append(float(p["avg_price_per_kg"] or 0))
+            by_week.setdefault(str(p["week_start"]), []).append(float(p["avg_price_per_kg"] or 0))
         weeks_sorted = sorted(by_week.keys())
         first = sum(by_week[weeks_sorted[0]]) / len(by_week[weeks_sorted[0]])
         last = sum(by_week[weeks_sorted[-1]]) / len(by_week[weeks_sorted[-1]])
         price_change_pct = round(100.0 * (last - first) / first, 1) if first else None
 
     kpi = {
-        "peak_utilization_pct": max((float(f["current_utilization_pct"]) for f in forecast if f["current_utilization_pct"] is not None), default=None),
+        "peak_utilization_pct": max((f["current_utilization_pct"] for f in forecast if f["current_utilization_pct"] is not None), default=None),
         "feedlots_over_target": sum(1 for f in forecast if f["band"] in ("WATCH", "ACTION")),
         "upcoming_head": upcoming_head,
         "price_change_pct": price_change_pct,
@@ -87,13 +93,18 @@ class InsightReq(BaseModel):
 
 @router.post("/capacity/ai-insight")
 def ai_insight(req: InsightReq):
-    forecast = run(f"""
-        SELECT f.feedlot_name, f.target_utilization_pct,
-               MAX(CASE WHEN w.week_start = (SELECT MAX(week_start) FROM {G}.feedlot_capacity_weekly) THEN w.utilization_pct END) AS current_util
-        FROM {FL}.feedlots f LEFT JOIN {G}.feedlot_capacity_weekly w ON f.property = w.property
-        GROUP BY f.feedlot_name, f.target_utilization_pct""")
+    forecast = pg.query("""
+        SELECT f.feedlot_name, f.target_utilization_pct, w.utilization_pct AS current_util
+        FROM feedlots f
+        LEFT JOIN (
+          SELECT property, utilization_pct,
+                 ROW_NUMBER() OVER (PARTITION BY property ORDER BY week_start DESC) AS rn
+          FROM feedlot_capacity_weekly
+        ) w ON f.property = w.property AND w.rn = 1""")
     facts = "\n".join(
         f"- {r['feedlot_name']}: currently ~{r['current_util']}% utilised against a {r['target_utilization_pct']}% target"
+        if r.get("current_util") is not None else
+        f"- {r['feedlot_name']}: no utilisation estimate yet (target {r['target_utilization_pct']}%)"
         for r in forecast)
     msgs = [
         {"role": "system", "content": (

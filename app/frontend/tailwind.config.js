@@ -18,13 +18,13 @@ export default {
         bad: { DEFAULT: '#DC3545', text: '#BD2130' },
       },
       fontFamily: {
-        sans: ['Barlow Semi Condensed', 'system-ui', 'sans-serif'],
-        display: ['Spectral', 'Georgia', 'serif'],
+        sans: ['Fira Sans', 'system-ui', 'sans-serif'],
       },
-      // ACC's site is a flat Bootstrap-4 surface (0.25rem corners, 1px borders,
-      // no elevation shadows) - reproduce that rather than a soft/shadowed style.
-      borderRadius: { DEFAULT: '4px' },
+      borderRadius: { DEFAULT: '6px' },
       boxShadow: { card: 'none' },
+      transitionTimingFunction: {
+        acc: 'cubic-bezier(0.16, 1, 0.3, 1)',
+      },
     },
   },
   plugins: [],

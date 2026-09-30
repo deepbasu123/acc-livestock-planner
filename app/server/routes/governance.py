@@ -1,18 +1,17 @@
 """Governance: persona-driven commercial-pricing masking demonstration.
 
-The backend reads unmasked base data (its identity is in acc_exec) and applies
-the SAME persona policy that Unity Catalog ABAC enforces for real users, so the
-persona toggle visibly reproduces the governance outcome:
+The backend reads unmasked base data and applies the persona policy in the app
+(the app runs as its own service principal), so the persona toggle visibly
+reproduces the governance outcome:
   exec        -> sees everything
   procurement -> sees pricing (price_per_kg, price_variation, buyer_payee_details)
   operations  -> sees booking/logistics fields; pricing is masked
-"""
+Reads the Lakebase gold views (see server/pg_bootstrap.py)."""
 from fastapi import APIRouter
-from ..sql import run
-from ..config import CATALOG
+
+from .. import pg
 
 router = APIRouter()
-G = f"{CATALOG}.acc_gold"
 
 POLICY = [
     ("Feedlot, status, head count, week", "logistics", ["exec", "procurement", "operations"]),
@@ -43,9 +42,9 @@ def bookings_sample(persona: str = "exec"):
     price = "price_per_kg" if vis else "'███ REDACTED'"
     var = "price_variation" if vis else "'███ REDACTED'"
     payee = "buyer_payee_details" if vis else "'███ REDACTED'"
-    rows = run(f"""SELECT id, property, vendor_name, buyer_name, head_count,
+    rows = pg.query(f"""SELECT id, property, vendor_name, buyer_name, head_count,
         {price} AS price_per_kg, {var} AS price_variation, {payee} AS buyer_payee_details, status
-        FROM {G}.booking_expanded ORDER BY updated_at DESC NULLS LAST LIMIT 15""")
+        FROM booking_expanded ORDER BY updated_at DESC NULLS LAST LIMIT 15""")
     return {"persona": persona, "pricing_visible": vis, "bookings": rows}
 
 
@@ -53,14 +52,14 @@ def bookings_sample(persona: str = "exec"):
 def vendor_scorecard(persona: str = "exec"):
     vis = _vis("pricing", persona)
     price = "avg_price_per_kg" if vis else "NULL"
-    rows = run(f"""SELECT vendor_id, vendor_name, total_bookings, cancellation_rate_pct, total_head_booked,
-        {price} AS avg_price_per_kg FROM {G}.vendor_scorecard WHERE total_bookings > 0
+    rows = pg.query(f"""SELECT vendor_id, vendor_name, total_bookings, cancellation_rate_pct, total_head_booked,
+        {price} AS avg_price_per_kg FROM vendor_scorecard WHERE total_bookings > 0
         ORDER BY total_head_booked DESC LIMIT 20""")
     return {"persona": persona, "pricing_visible": vis, "vendors": rows}
 
 
 @router.get("/governance/agent-performance")
 def agent_performance():
-    rows = run(f"""SELECT agent_id, agent_name, total_bookings, total_head_booked, distinct_vendors
-        FROM {G}.agent_performance WHERE total_bookings > 0 ORDER BY total_head_booked DESC""")
+    rows = pg.query("""SELECT agent_id, agent_name, total_bookings, total_head_booked, distinct_vendors
+        FROM agent_performance WHERE total_bookings > 0 ORDER BY total_head_booked DESC""")
     return {"agents": rows}

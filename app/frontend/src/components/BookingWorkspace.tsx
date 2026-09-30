@@ -31,7 +31,7 @@ export default function BookingWorkspace({ mode, onDone, onBack }:
   if (loading || !lookups) return <Spinner label="Loading booking form…" />
   if (mode.kind === 'edit' && !booking) return <div className="text-sm text-gray-400">Booking not found.</div>
 
-  const title = mode.kind === 'new' ? 'New Booking' : 'Edit Booking'
+  const title = mode.kind === 'new' ? 'New booking' : 'Edit booking'
   const subtitle = mode.kind === 'edit' && booking
     ? `${booking.property} · ${booking.head_count} head · ${booking.week_number ?? booking.week_commencing ?? ''}`
     : 'Enter the booking details below'
@@ -62,19 +62,19 @@ export default function BookingWorkspace({ mode, onDone, onBack }:
         <div className="flex items-center gap-2">
           <button onClick={onBack} className="w-11 h-11 -m-1 flex items-center justify-center text-gray-400 hover:text-brand-ink" aria-label="Back to bookings"><ArrowLeft size={18} /></button>
           <div>
-            <h2 className="text-lg font-semibold text-brand-ink" style={{ fontFamily: "'Spectral', serif" }}>{title}</h2>
-            <p className="text-xs text-gray-500">{subtitle}</p>
+            <h2 className="acc-title">{title}</h2>
+            <p className="text-sm text-gray-500 mt-0.5">{subtitle}</p>
           </div>
         </div>
         {mode.kind === 'edit' && (
           <div className="flex items-center gap-2">
-            <button onClick={doDuplicate} disabled={busy} className="flex items-center gap-1.5 border border-brand-border hover:border-brand text-brand-ink text-xs font-semibold px-3 py-2 rounded">
+            <button onClick={doDuplicate} disabled={busy} className="min-h-11 flex items-center gap-1.5 border border-brand-border hover:border-brand text-brand-ink text-sm font-semibold px-3 rounded">
               <Copy size={14} /> Duplicate
             </button>
-            <button onClick={() => setShowHistory(s => !s)} className="flex items-center gap-1.5 border border-brand-border hover:border-brand text-brand-ink text-xs font-semibold px-3 py-2 rounded">
+            <button onClick={() => setShowHistory(s => !s)} className="min-h-11 flex items-center gap-1.5 border border-brand-border hover:border-brand text-brand-ink text-sm font-semibold px-3 rounded">
               <Clock size={14} /> History ({history.length})
             </button>
-            <button onClick={doDelete} disabled={busy} className="flex items-center gap-1.5 border border-brand-border hover:border-red-300 text-bad-text text-xs font-semibold px-3 py-2 rounded">
+            <button onClick={doDelete} disabled={busy} className="min-h-11 flex items-center gap-1.5 border border-brand-border hover:border-red-300 text-bad-text text-sm font-semibold px-3 rounded">
               <Trash2 size={14} /> Delete
             </button>
           </div>

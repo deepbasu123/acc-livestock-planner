@@ -25,8 +25,16 @@ export ACC_PARENT="/Workspace/Shared/acc-livestock-planner"
 # Foundation model for the app's AI summaries (Databricks Model Serving name).
 export ACC_LLM_MODEL="databricks-claude-sonnet-4-6"
 
-# Databricks App name (lowercase, hyphens).
+# Databricks App name (lowercase letters/numbers/hyphens, <= 26 chars).
 export ACC_APP_NAME="acc-livestock-planner"
+
+# --- Lakebase (operational Postgres) ---
+# Lakebase Autoscaling project that backs the app's operational data. deploy.py
+# creates it if it doesn't exist (or reuses it), then attaches it to the app.
+# Id: lowercase letters/numbers/hyphens, must start with a letter.
+export ACC_LAKEBASE_PROJECT="acc-livestock-planner"
+# Postgres schema the app owns (its service principal creates + seeds it).
+export ACC_PG_SCHEMA="acc"
 
 # Filled in automatically by deploy.py; only set these if deploying the app on its own.
 # export ACC_GENIE_SPACE="<genie-space-id>"

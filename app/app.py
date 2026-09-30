@@ -1,4 +1,5 @@
 """ACC Livestock Planner - FastAPI entry point."""
+import logging
 import os
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
@@ -7,7 +8,20 @@ from fastapi.responses import FileResponse, JSONResponse
 from server.config import get_host, GENIE_SPACE_ID, DASHBOARD_ID, CATALOG
 from server.routes import bookings, masterdata, governance, ai, genie_chat, capacity, architecture
 
+logging.basicConfig(level=logging.INFO)
 app = FastAPI(title="ACC Livestock Planner")
+
+
+@app.on_event("startup")
+def _bootstrap_lakebase():
+    """Create the app-owned Postgres schema/tables/views and seed them if empty.
+    Idempotent, so restarts and redeploys are safe. Never fatal: log and carry
+    on so health checks still come up if Lakebase is briefly unreachable."""
+    try:
+        from server import pg_bootstrap
+        pg_bootstrap.init()
+    except Exception:
+        logging.getLogger("acc").exception("Lakebase bootstrap failed (continuing)")
 
 app.include_router(bookings.router, prefix="/api")
 app.include_router(masterdata.router, prefix="/api")

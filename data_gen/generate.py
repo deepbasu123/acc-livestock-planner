@@ -260,11 +260,10 @@ def price_text(base_ckg):
     """Free-text price field - deliberately messy real-world *labelling*
     (plain / labelled / dollar-sign), but the underlying number always stays
     in the same $/kg magnitude so aggregate numeric parsing isn't corrupted
-    by a stray unit-scale error."""
-    v = round(base_ckg + rng.normal(0, 0.15), 2)
-    fmt = random.choices(["plain", "ckg", "dollar", "blank"], [0.45, 0.30, 0.15, 0.10])[0]
-    if fmt == "blank":
-        return None
+    by a stray unit-scale error. Always populated so demo screens never show
+    a blank Price/Kg cell."""
+    v = round(max(4.2, base_ckg + rng.normal(0, 0.15)), 2)
+    fmt = random.choices(["plain", "ckg", "dollar"], [0.50, 0.30, 0.20])[0]
     if fmt == "plain":
         return f"{v:.2f}"
     if fmt == "ckg":
@@ -282,10 +281,10 @@ for d in chosen_days:
     is_future = d > TODAY
     prop = random.choices(PROPERTIES, [FL_POPULARITY[p] for p in PROPERTIES])[0]
     vendor_id = str(np.random.choice(VENDOR_IDS, p=vendor_weights))
-    agent_id = str(np.random.choice(AGENT_IDS, p=agent_weights)) if rng.random() < 0.92 else None
-    if vendor_id not in vendor_payee and PAYEE_IDS and rng.random() < 0.7:
+    agent_id = str(np.random.choice(AGENT_IDS, p=agent_weights))
+    if vendor_id not in vendor_payee and PAYEE_IDS:
         vendor_payee[vendor_id] = random.choice(PAYEE_IDS)
-    payee_id = vendor_payee.get(vendor_id) if rng.random() < 0.85 else (random.choice(PAYEE_IDS) if PAYEE_IDS else None)
+    payee_id = vendor_payee.get(vendor_id) or (random.choice(PAYEE_IDS) if PAYEE_IDS else None)
 
     lead_days = int(rng.integers(3, 28))
     created = d - dt.timedelta(days=lead_days)
@@ -301,27 +300,27 @@ for d in chosen_days:
         status = random.choices(BOOKING_STATUSES, [0.03, 0.90, 0.07])[0]
 
     wc = week_commencing(d)
-    week_number = iso_week_string(wc) if rng.random() > 0.04 else None  # rare gap: staff left it blank
+    week_number = iso_week_string(wc)
     base_price = {"BPFL": 6.35, "Opal Ck": 6.05, "BVFL": 6.55}[prop] + 0.9 * ((d - HIST_START).days / total_days)
+    programs_pool = PROGRAM_NAMES_ACTIVE or PROGRAM_NAMES
 
     booking_id = uid()
     creator = random.choice(STAFF)
     row = dict(
         id=booking_id, property=prop, status=status,
         week_number=week_number, week_commencing=wc, head_count=head_count,
-        delivery_day=random.choice(DELIVERY_DAYS) if rng.random() > 0.15 else None,
+        delivery_day=random.choice(DELIVERY_DAYS),
         agent_id=agent_id, vendor_id=vendor_id, payee_id=payee_id,
-        grid_text=(f"{int(rng.integers(2400, 2900))}+{int(rng.integers(10,40))}c" if rng.random() > 0.3 else None),
-        program=random.choice(PROGRAM_NAMES_ACTIVE) if rng.random() > 0.2 and PROGRAM_NAMES_ACTIVE else None,
+        grid_text=f"{int(rng.integers(2400, 2900))}+{int(rng.integers(10, 40))}c",
+        program=random.choice(programs_pool),
         price_per_kg=price_text(base_price),
-        price_variation=(random.choice(["ACC pays freight", "Vendor pays freight", "Subject to MSA grading",
-            "Plus GST", "Weight loss allowance 2%"]) if rng.random() < 0.35 else None),
-        weigh_point_id=random.choice(WEIGH_POINT_IDS) if rng.random() > 0.1 else None,
-        origin_id=random.choice(ORIGIN_IDS) if rng.random() > 0.08 else None,
-        buyer_id=random.choice(BUYER_IDS) if rng.random() > 0.05 else None,
-        buyer_payee_details=(random.choice(["Pay on delivery", "30 day account", "EFT within 7 days", "Cash sale"])
-                              if rng.random() < 0.3 else None),
-        notes=random.choice(NOTES_POOL) if rng.random() < 0.35 else None,
+        price_variation=random.choice(["ACC pays freight", "Vendor pays freight", "Subject to MSA grading",
+            "Plus GST", "Weight loss allowance 2%", "Grid plus 10c if MSA 3+", "Subject to kill-out yield"]),
+        weigh_point_id=random.choice(WEIGH_POINT_IDS),
+        origin_id=random.choice(ORIGIN_IDS),
+        buyer_id=random.choice(BUYER_IDS),
+        buyer_payee_details=random.choice(["Pay on delivery", "30 day account", "EFT within 7 days", "Cash sale"]),
+        notes=random.choice(NOTES_POOL),
         created_by=creator, created_by_email=STAFF_EMAIL[creator], created_at=rand_ts(created),
         modified_by=None, modified_by_email=None, updated_at=None, deleted_at=None,
     )
@@ -368,6 +367,15 @@ for b in random.sample(del_candidates, k=max(1, int(len(bookings) * 0.025))):
     add_history(history_rows, b["id"], "delete", deleter, STAFF_EMAIL[deleter], del_at, None, {"deleted_at": del_at.isoformat()})
 
 bookings_df = pd.DataFrame(bookings)
+filled_cols = [
+    "property", "status", "week_number", "week_commencing", "head_count", "delivery_day",
+    "agent_id", "vendor_id", "payee_id", "grid_text", "program", "price_per_kg", "price_variation",
+    "weigh_point_id", "origin_id", "buyer_id", "buyer_payee_details", "notes", "created_by",
+]
+for c in filled_cols:
+    nnull = int(bookings_df[c].isna().sum()) + int((bookings_df[c].astype(str).str.strip() == "").sum())
+    if nnull:
+        raise SystemExit(f"{c} has {nnull} blank values - expected fully populated synthetic data")
 add("acc_booking", "cattle_bookings", bookings_df)
 
 # ============================================================================

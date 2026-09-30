@@ -31,8 +31,8 @@ export const BLUEPRINT: Blueprint = {
   tabs: [
     { id: 'overview', label: 'Dashboard' },
     { id: 'bookings', label: 'Bookings' },
-    { id: 'admin', label: 'Master Data' },
-    { id: 'forecast', label: 'Capacity Forecast' },
+    { id: 'admin', label: 'Master data' },
+    { id: 'forecast', label: 'Capacity forecast' },
     { id: 'governance', label: 'Governance' },
     { id: 'genie', label: 'Ask ACC' },
     { id: 'architecture', label: 'Architecture' },

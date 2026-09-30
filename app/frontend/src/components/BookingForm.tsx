@@ -3,29 +3,56 @@ import { PROPERTIES, STATUSES, type BookingInput, type BookingExpanded, type Pro
 import { isoWeekString, weekCommencing } from '../lib/week'
 
 interface Lookups {
-  agents: { id: string; name: string }[]
-  vendors: { id: string; name: string }[]
-  payees: { id: string; name: string }[]
-  programs: { id: string; name: string }[]
-  weigh_points: { id: string; name: string }[]
-  origins: { id: string; name: string }[]
-  buyers: { id: string; name: string }[]
+  agents: { id: string; name: string; active?: boolean }[]
+  vendors: { id: string; name: string; active?: boolean }[]
+  payees: { id: string; name: string; active?: boolean }[]
+  programs: { id: string; name: string; active?: boolean }[]
+  weigh_points: { id: string; name: string; active?: boolean }[]
+  origins: { id: string; name: string; active?: boolean }[]
+  buyers: { id: string; name: string; active?: boolean }[]
   delivery_days: string[]
 }
 
-function makeEmpty(property: Property): BookingInput {
+function isoDate(d: Date) {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+function pickId(rows?: { id: string; active?: boolean }[]) {
+  return rows?.find(r => r.active !== false)?.id ?? rows?.[0]?.id ?? null
+}
+
+function makeEmpty(property: Property, lookups?: Lookups): BookingInput {
+  const wc = weekCommencing(new Date())
+  const activePrograms = lookups?.programs?.filter(p => p.active !== false)
   return {
-    property, status: 'Draft', week_number: '', week_commencing: null, head_count: 0,
-    delivery_day: null, agent_id: null, vendor_id: null, payee_id: null,
-    grid_text: '', program: null, price_per_kg: '', price_variation: '',
-    weigh_point_id: null, origin_id: null, buyer_id: null, buyer_payee_details: '', notes: '',
+    property, status: 'Draft',
+    week_number: isoWeekString(wc),
+    week_commencing: isoDate(wc),
+    head_count: 48,
+    delivery_day: lookups?.delivery_days?.[2] ?? 'Wednesday',
+    agent_id: pickId(lookups?.agents),
+    vendor_id: pickId(lookups?.vendors),
+    payee_id: pickId(lookups?.payees),
+    grid_text: '2624+20c',
+    program: activePrograms?.[0]?.name ?? lookups?.programs?.[0]?.name ?? 'MSA Grid Program',
+    price_per_kg: '6.45',
+    price_variation: 'ACC pays freight',
+    weigh_point_id: pickId(lookups?.weigh_points),
+    origin_id: pickId(lookups?.origins),
+    buyer_id: pickId(lookups?.buyers),
+    buyer_payee_details: 'EFT within 7 days',
+    notes: 'Repeat booking from last week, same specs',
   }
 }
 
 export function bookingToInput(b: BookingExpanded): BookingInput {
   return {
-    property: b.property, status: b.status, week_number: b.week_number, week_commencing: b.week_commencing,
-    head_count: b.head_count, delivery_day: b.delivery_day, agent_id: b.agent_id, vendor_id: b.vendor_id,
+    property: b.property, status: b.status, week_number: b.week_number,
+    week_commencing: b.week_commencing ? String(b.week_commencing).slice(0, 10) : null,
+    head_count: Number(b.head_count) || 0, delivery_day: b.delivery_day, agent_id: b.agent_id, vendor_id: b.vendor_id,
     payee_id: b.payee_id, grid_text: b.grid_text, program: b.program, price_per_kg: b.price_per_kg,
     price_variation: b.price_variation, weigh_point_id: b.weigh_point_id, origin_id: b.origin_id,
     buyer_id: b.buyer_id, buyer_payee_details: b.buyer_payee_details, notes: b.notes,
@@ -47,7 +74,7 @@ export default function BookingForm({ initial, initialProperty, lookups,   submi
   busy?: boolean
   error?: string
 }) {
-  const [values, setValues] = useState<BookingInput>(() => initial ?? makeEmpty(initialProperty ?? 'BPFL'))
+  const [values, setValues] = useState<BookingInput>(() => initial ?? makeEmpty(initialProperty ?? 'BPFL', lookups))
   const [validationError, setValidationError] = useState('')
 
   useEffect(() => {
@@ -79,7 +106,7 @@ export default function BookingForm({ initial, initialProperty, lookups,   submi
     if (!validate() || !onSubmitAndAddAnother) return
     const result = await onSubmitAndAddAnother(values)
     if (result === false) return // save failed - keep the user's entered data on screen
-    setValues(makeEmpty(values.property))
+    setValues(makeEmpty(values.property, lookups))
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -156,29 +183,32 @@ export default function BookingForm({ initial, initialProperty, lookups,   submi
         </Field>
       </Section>
 
-      <div className="sticky bottom-16 md:bottom-0 md:static -mx-4 md:mx-0 px-4 md:px-0 py-3 md:py-0 bg-white/95 md:bg-transparent backdrop-blur md:backdrop-blur-none border-t md:border-0 border-brand-border flex gap-2 flex-wrap z-10">
+      <div className="fixed md:static inset-x-0 bottom-[calc(3rem+env(safe-area-inset-bottom))] md:inset-auto z-20 bg-white md:bg-transparent border-t md:border-0 border-brand-border px-4 py-3 md:px-0 md:py-0 flex gap-2">
         <button onClick={handleSave} disabled={busy} className="h-11 px-5 flex-1 md:flex-none bg-brand hover:bg-branddark disabled:opacity-50 text-white text-sm font-semibold rounded">
           {submitLabel}
         </button>
         {onSubmitAndAddAnother && (
-          <button onClick={handleSaveAndNew} disabled={busy} className="h-11 px-5 flex-1 md:flex-none border border-brand-border hover:border-brand text-brand-ink text-sm font-semibold rounded">
-            Save &amp; Add Another
+          <button onClick={handleSaveAndNew} disabled={busy} className="h-11 px-3 flex-1 md:flex-none border border-brand-border hover:border-brand text-brand-ink text-sm font-semibold rounded">
+            Save &amp; add another
           </button>
         )}
         {onCancel && (
-          <button onClick={onCancel} disabled={busy} className="h-11 px-4 text-gray-500 hover:text-brand-ink text-sm font-medium">Cancel</button>
+          <button onClick={onCancel} disabled={busy} className="hidden md:inline h-11 px-4 text-gray-500 hover:text-brand-ink text-sm font-medium">Cancel</button>
         )}
       </div>
+      <div className="h-24 md:hidden" aria-hidden="true" />
     </div>
   )
 }
 
 function MasterSelect({ rows, value, onChange, placeholder }:
-  { rows: { id: string; name: string }[]; value: string | null | undefined; onChange: (v: string | null) => void; placeholder: string }) {
+  { rows: { id: string; name: string; active?: boolean }[]; value: string | null | undefined; onChange: (v: string | null) => void; placeholder: string }) {
   return (
     <select className="acc-input" value={value ?? ''} onChange={e => onChange(e.target.value || null)}>
       <option value="">{placeholder}</option>
-      {rows.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+      {rows.map(r => (
+        <option key={r.id} value={r.id}>{r.name}{r.active === false ? ' (inactive)' : ''}</option>
+      ))}
     </select>
   )
 }
@@ -186,7 +216,7 @@ function MasterSelect({ rows, value, onChange, placeholder }:
 function Section({ title, children }: { title: string; children: any }) {
   return (
     <section className="rounded border border-brand-border bg-white p-4 md:p-5">
-      <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">{title}</h3>
+      <h3 className="acc-kicker mb-3">{title}</h3>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">{children}</div>
     </section>
   )

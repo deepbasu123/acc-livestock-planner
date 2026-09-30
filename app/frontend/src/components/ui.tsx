@@ -28,8 +28,8 @@ export function KPI({ label, value, sub, accent }:
   { label: string; value: ReactNode; sub?: string; accent?: string }) {
   return (
     <div className="bg-white rounded-lg border border-brand-border p-4 flex flex-col gap-1">
-      <span className="text-[11px] uppercase tracking-wide text-gray-500">{label}</span>
-      <span className="text-2xl font-bold font-sans" style={{ color: accent || '#252525' }}>{value}</span>
+      <span className="text-[13px] font-medium text-gray-500">{label}</span>
+      <span className="acc-num text-2xl" style={{ color: accent || '#252525' }}>{value}</span>
       {sub && <span className="text-xs text-gray-400">{sub}</span>}
     </div>
   )

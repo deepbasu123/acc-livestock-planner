@@ -38,8 +38,8 @@ export default function CapacityForecast({ persona }: { persona: Persona }) {
   return (
     <div className="space-y-5 fadein">
       <div>
-        <h2 className="text-lg font-semibold text-brand-ink" style={{ fontFamily: "'Spectral', serif" }}>Capacity Forecast</h2>
-        <p className="text-xs text-gray-500 mt-0.5 flex items-start gap-1.5">
+        <h2 className="acc-title">Capacity forecast</h2>
+        <p className="text-sm text-gray-500 mt-1 flex items-start gap-1.5">
           <Info size={13} className="mt-0.5 shrink-0" />
           A Databricks-derived estimate: on-feed inventory is a trailing 14-week rolling sum of booked head against
           pen capacity. The reference app only tracks bookings, not a full receival/turnoff system, so treat this as
@@ -82,7 +82,7 @@ export default function CapacityForecast({ persona }: { persona: Persona }) {
         </Card>
         <Card title="AI Capacity Optimisation Strategy"
           right={<button onClick={genInsight} disabled={loadingIns}
-            className="flex items-center gap-1.5 bg-brand hover:bg-branddark disabled:opacity-50 text-white text-xs font-semibold px-3 py-1.5 rounded">
+            className="min-h-11 flex items-center gap-1.5 bg-brand hover:bg-branddark disabled:opacity-50 text-white text-sm font-semibold px-3 rounded">
             <Sparkles size={13} /> {loadingIns ? 'Generating…' : 'Generate'}</button>}>
           {loadingIns ? <Spinner label="Analysing capacity across the network…" /> :
             insight ? <MarkdownBlock text={insight} /> :

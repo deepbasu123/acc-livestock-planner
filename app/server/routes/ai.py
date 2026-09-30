@@ -1,13 +1,13 @@
-"""AI features: feedlot health summary (Foundation Model API)."""
+"""AI features: feedlot health summary (Foundation Model API).
+
+Reads the Lakebase gold views (see server/pg_bootstrap.py)."""
 from fastapi import APIRouter
 from pydantic import BaseModel
-from ..sql import run, one
+
+from .. import pg
 from ..llm import chat
-from ..config import CATALOG
 
 router = APIRouter()
-G = f"{CATALOG}.acc_gold"
-FL = f"{CATALOG}.acc_feedlot"
 
 
 class FeedlotReq(BaseModel):
@@ -16,16 +16,16 @@ class FeedlotReq(BaseModel):
 
 @router.post("/ai/feedlot-summary")
 def feedlot_summary(req: FeedlotReq):
-    f = one(f"SELECT * FROM {FL}.feedlots WHERE property = '{req.property}'")
+    f = pg.one("SELECT * FROM feedlots WHERE property = :p", {"p": req.property})
     if not f:
         return {"summary": "Feedlot not found."}
-    latest = one(f"""SELECT * FROM {G}.feedlot_capacity_weekly WHERE property = '{req.property}'
-        ORDER BY week_start DESC LIMIT 1""")
-    stats = one(f"""SELECT COUNT(*) AS bookings_90d,
+    latest = pg.one("""SELECT * FROM feedlot_capacity_weekly WHERE property = :p
+        ORDER BY week_start DESC LIMIT 1""", {"p": req.property})
+    stats = pg.one("""SELECT COUNT(*) AS bookings_90d,
                SUM(CASE WHEN status = 'Cancelled' THEN 1 ELSE 0 END) AS cancelled_count,
                SUM(CASE WHEN status <> 'Cancelled' THEN head_count ELSE 0 END) AS head_booked
-        FROM {G}.booking_expanded
-        WHERE property = '{req.property}' AND week_commencing >= DATE_SUB(CURRENT_DATE(), 90)""")
+        FROM booking_expanded
+        WHERE property = :p AND week_commencing >= CURRENT_DATE - 90""", {"p": req.property})
     facts = (
         f"Feedlot: {f.get('feedlot_name')} ({f.get('property')}), {f.get('suburb')} {f.get('state')}\n"
         f"Total pen capacity: {f.get('total_capacity_head')} head | Target utilisation: {f.get('target_utilization_pct')}%\n"

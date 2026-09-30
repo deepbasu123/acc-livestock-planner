@@ -17,8 +17,10 @@ export default function Dashboard({ onNewBooking, onViewAll }:
     for (const b of bookings || []) {
       if (b.status === 'Cancelled') continue
       total += 1
-      totalHead += b.head_count ?? 0
-      byProperty[b.property] = (byProperty[b.property] ?? 0) + (b.head_count ?? 0)
+      const head = Number(b.head_count)
+      const n = Number.isFinite(head) ? head : 0
+      totalHead += n
+      byProperty[b.property] = (byProperty[b.property] ?? 0) + n
     }
     return { byProperty, totalHead, total }
   }, [bookings])
@@ -26,8 +28,8 @@ export default function Dashboard({ onNewBooking, onViewAll }:
   return (
     <div className="space-y-6 fadein">
       <div>
-        <h1 className="text-xl font-semibold text-brand-ink" style={{ fontFamily: "'Spectral', serif" }}>ACC Livestock Procurement Planner</h1>
-        <p className="text-xs text-gray-500 mt-0.5">Cattle bookings across all three feedlots</p>
+        <h1 className="acc-title">ACC Livestock Procurement Planner</h1>
+        <p className="text-sm text-gray-500 mt-1">Cattle bookings across all three feedlots</p>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -36,13 +38,13 @@ export default function Dashboard({ onNewBooking, onViewAll }:
       </div>
 
       <div>
-        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">Head Count by Feedlot</h2>
+        <h2 className="acc-kicker">Head count by feedlot</h2>
         {!bookings ? <Spinner /> : (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {PROPERTIES.map(p => (
               <div key={p} className="rounded border border-brand-border bg-white p-5">
                 <div className="text-sm font-medium text-gray-500">{FEEDLOT_LABEL[p]} <span className="text-gray-400">({p})</span></div>
-                <div className="mt-2 text-4xl font-bold tracking-tight text-brand-ink">{num(stats.byProperty[p])}</div>
+                <div className="mt-2 acc-num text-[1.75rem] sm:text-4xl text-brand-ink">{num(stats.byProperty[p])}</div>
               </div>
             ))}
           </div>
@@ -50,20 +52,20 @@ export default function Dashboard({ onNewBooking, onViewAll }:
       </div>
 
       <div>
-        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">Create Booking</h2>
+        <h2 className="acc-kicker">Create booking</h2>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {PROPERTIES.map(p => (
             <button key={p} onClick={() => onNewBooking(p)}
-              className="h-20 rounded bg-brand hover:bg-branddark text-white text-base font-semibold flex items-center justify-center gap-2 transition">
-              <Plus size={20} /> New {p} Booking
+              className="min-h-[4.5rem] rounded bg-brand hover:bg-branddark text-white text-base font-semibold flex items-center justify-center gap-2 transition duration-200 ease-acc">
+              <Plus size={20} /> New {p} booking
             </button>
           ))}
         </div>
       </div>
 
       <button onClick={onViewAll}
-        className="h-14 w-full rounded border border-brand-border hover:border-brand text-brand-ink text-base font-semibold flex items-center justify-center gap-2 transition">
-        <List size={20} /> View All Bookings
+        className="min-h-14 w-full rounded border border-brand-border hover:border-brand text-brand-ink text-base font-semibold flex items-center justify-center gap-2 transition duration-200 ease-acc">
+        <List size={20} /> View all bookings
       </button>
     </div>
   )
@@ -73,7 +75,7 @@ function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded border border-brand-border bg-white p-5">
       <div className="text-sm text-gray-500">{label}</div>
-      <div className="mt-2 text-4xl font-bold tracking-tight text-brand-ink">{value}</div>
+      <div className="mt-2 acc-num text-[1.75rem] sm:text-4xl text-brand-ink">{value}</div>
     </div>
   )
 }

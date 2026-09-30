@@ -14,7 +14,7 @@
     "card": "#FFFFFF",
     "border": "#E2E7ED"
   },
-  "font": "Barlow Semi Condensed",
+  "font": "Fira Sans",
   "logo_path": "/Users/deep.basu/git/demos/acc-brand-evidence/acc-logo.png",
   "favicon_path": "/Users/deep.basu/git/demos/acc-brand-evidence/acc-logo.png",
   "_extra_not_read_by_theme_py": {
@@ -26,7 +26,7 @@
     "warning_text": "#B8860B",
     "danger": "#DC3545",
     "danger_text": "#BD2130",
-    "display_font": "Spectral",
+    "display_font": "Fira Sans",
     "note": "primary/dark/ink/bg/card/border/font consumed by theme.py; the rest applied by hand in tailwind.config.js + index.css per design-fidelity.md"
   }
 }

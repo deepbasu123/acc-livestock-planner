@@ -1,35 +1,38 @@
-"""Live deployed-object counts for the Architecture tab."""
+"""Live deployed-object counts for the Architecture tab.
+
+Now reports the Lakebase (Postgres) operational layer: the app-owned schema,
+its tables + gold views, the governed commercial-pricing fields, and live row
+counts - all read straight from Postgres."""
 from fastapi import APIRouter
-from ..sql import run, one
-from ..config import CATALOG
+
+from .. import pg
 
 router = APIRouter()
-SCHEMAS = ["acc_feedlot", "acc_counterparty", "acc_reference", "acc_booking", "acc_audit", "acc_gold"]
-PREFIX_LIST = "','".join(SCHEMAS)
+
+# Commercial-pricing fields the persona policy governs (see routes/governance.py).
+GOVERNED_FIELDS = ["price_per_kg", "price_variation", "buyer_payee_details"]
 
 
 @router.get("/architecture/stats")
 def stats():
     try:
-        by_schema = run(f"""
-            SELECT table_schema, COUNT(*) AS n FROM {CATALOG}.information_schema.tables
-            WHERE table_schema IN ('{PREFIX_LIST}') GROUP BY table_schema ORDER BY table_schema""")
-        masks = one(f"""
-            SELECT COUNT(*) AS n FROM {CATALOG}.information_schema.column_masks
-            WHERE table_schema IN ('{PREFIX_LIST}')""")
-        tags = one(f"""
-            SELECT COUNT(DISTINCT schema_name || '.' || table_name || '.' || column_name) AS n
-            FROM {CATALOG}.information_schema.column_tags WHERE schema_name IN ('{PREFIX_LIST}')""")
-        rows = one(f"""
-            SELECT
-              (SELECT COUNT(*) FROM {CATALOG}.acc_booking.cattle_bookings WHERE deleted_at IS NULL) AS bookings,
-              (SELECT COUNT(*) FROM {CATALOG}.acc_counterparty.vendors) AS vendors,
-              (SELECT COUNT(*) FROM {CATALOG}.acc_audit.booking_history) AS history_events,
-              (SELECT COUNT(*) FROM {CATALOG}.acc_counterparty.agents) AS agents""")
-        total_tables = sum(int(r["n"]) for r in by_schema)
-        gold_views = next((int(r["n"]) for r in by_schema if r["table_schema"] == "acc_gold"), 0)
-        return {"ok": True, "catalog": CATALOG, "by_schema": by_schema, "total_tables": total_tables,
-                "gold_views": gold_views, "masks_applied": int(masks.get("n", 0)),
-                "tagged_columns": int(tags.get("n", 0)), "row_counts": rows}
+        schema = pg.SCHEMA
+        tbls = pg.one(
+            "SELECT COUNT(*) AS n FROM information_schema.tables "
+            "WHERE table_schema = :s AND table_type = 'BASE TABLE'", {"s": schema})
+        views = pg.one(
+            "SELECT COUNT(*) AS n FROM information_schema.views WHERE table_schema = :s", {"s": schema})
+        rows = pg.one("""SELECT
+              (SELECT COUNT(*) FROM cattle_bookings WHERE deleted_at IS NULL) AS bookings,
+              (SELECT COUNT(*) FROM vendors) AS vendors,
+              (SELECT COUNT(*) FROM booking_history) AS history_events,
+              (SELECT COUNT(*) FROM agents) AS agents""")
+        n_tables = int(tbls.get("n", 0) or 0)
+        n_views = int(views.get("n", 0) or 0)
+        by_schema = [{"table_schema": schema, "n": n_tables + n_views}]
+        return {"ok": True, "catalog": f"Lakebase / {schema}", "backend": "lakebase-postgres",
+                "by_schema": by_schema, "total_tables": n_tables + n_views,
+                "gold_views": n_views, "masks_applied": len(GOVERNED_FIELDS),
+                "tagged_columns": len(GOVERNED_FIELDS), "row_counts": rows}
     except Exception as e:
-        return {"ok": False, "error": str(e), "catalog": CATALOG}
+        return {"ok": False, "error": str(e), "catalog": "Lakebase"}

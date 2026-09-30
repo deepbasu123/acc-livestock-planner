@@ -44,7 +44,7 @@ export default function GenieChat() {
         {msgs.length === 0 && (
           <div className="flex flex-wrap gap-2 mt-2">
             {SUGGESTED.map(s => (
-              <button key={s} onClick={() => ask(s)} className="text-xs text-gray-600 bg-white border border-brand-border hover:border-brand hover:text-brand rounded-full px-3 py-1.5 transition">{s}</button>
+              <button key={s} onClick={() => ask(s)} className="min-h-11 text-sm text-gray-600 bg-white border border-brand-border hover:border-brand hover:text-brand rounded-full px-3 transition">{s}</button>
             ))}
           </div>
         )}
@@ -71,7 +71,7 @@ export default function GenieChat() {
               )}
               {m.sql && (
                 <details className="mt-2">
-                  <summary className="text-[11px] text-gray-400 cursor-pointer flex items-center gap-1"><Database size={11} /> View generated SQL</summary>
+                  <summary className="min-h-11 text-sm text-gray-500 cursor-pointer flex items-center gap-1.5"><Database size={14} /> View generated SQL</summary>
                   <pre className="text-[11px] text-gray-600 bg-brand-bg border border-brand-border rounded p-2 mt-1 overflow-x-auto">{m.sql}</pre>
                 </details>
               )}
@@ -96,7 +96,7 @@ export default function GenieChat() {
           placeholder="Ask Genie about bookings, feedlots, growers, transport…" aria-label="Ask Genie a question"
           className="acc-input flex-1" />
         <button onClick={() => ask(q)} disabled={loading}
-          className="flex items-center gap-2 bg-brand hover:bg-branddark disabled:opacity-50 text-white text-sm font-semibold px-4 py-2.5 rounded">
+          className="min-h-11 flex items-center gap-2 bg-brand hover:bg-branddark disabled:opacity-50 text-white text-sm font-semibold px-4 rounded">
           <Send size={15} /> Send
         </button>
       </div>

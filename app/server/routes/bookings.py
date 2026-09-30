@@ -1,26 +1,32 @@
 """Cattle booking CRUD - create/update/soft-delete/duplicate, each writing an
-append-only booking_history row, exactly reproducing the reference app's
-src/lib/bookings.ts query shapes (see docs/SPEC.md sec 3.4)."""
+append-only booking_history row in the same transaction, exactly reproducing
+the reference app's src/lib/bookings.ts query shapes (see docs/SPEC.md sec 3.4).
+
+Backed by Lakebase (Postgres): every read and write is a low-latency Postgres
+round-trip. Queries are parameterised (no string interpolation), so the free
+text booking fields can't break out of their values.
+"""
 import datetime as dt
 import json
 import uuid
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
-from ..sql import run, one
-from ..config import CATALOG
+from sqlalchemy import text
+
+from .. import pg
 
 router = APIRouter()
-G = f"{CATALOG}.acc_gold"
-BK = f"{CATALOG}.acc_booking"
-AUD = f"{CATALOG}.acc_audit"
-CP = f"{CATALOG}.acc_counterparty"
-REF = f"{CATALOG}.acc_reference"
-FL = f"{CATALOG}.acc_feedlot"
 
 PROPERTIES = ["BPFL", "Opal Ck", "BVFL"]
 STATUSES = ["Draft", "Confirmed", "Cancelled"]
 APP_USER = ("ACC Livestock Planner", "app@accbeef.net.au")
+
+FIELDS = ["property", "status", "week_number", "week_commencing", "head_count", "delivery_day",
+          "agent_id", "vendor_id", "payee_id", "grid_text", "program", "price_per_kg", "price_variation",
+          "weigh_point_id", "origin_id", "buyer_id", "buyer_payee_details", "notes"]
+
+PRICING_FIELDS = ("price_per_kg", "price_per_kg_numeric", "price_variation", "buyer_payee_details")
 
 
 def _actor(request: Request) -> tuple[str, str]:
@@ -28,41 +34,16 @@ def _actor(request: Request) -> tuple[str, str]:
     reverse proxy injects X-Forwarded-* headers with the signed-in user's
     identity (see https://docs.databricks.com/aws/en/dev-tools/databricks-apps/http-headers).
     Falls back to a generic app identity locally, where those headers aren't
-    present (the reference app has no login - see docs/SPEC.md sec 5 - so this
-    is strictly an improvement over a hardcoded actor, not a permissions gate)."""
+    present (the reference app has no login - see docs/SPEC.md sec 5)."""
     email = request.headers.get("x-forwarded-email")
     name = request.headers.get("x-forwarded-preferred-username") or email
     if email:
         return (name or email, email)
     return APP_USER
 
-FIELDS = ["property", "status", "week_number", "week_commencing", "head_count", "delivery_day",
-          "agent_id", "vendor_id", "payee_id", "grid_text", "program", "price_per_kg", "price_variation",
-          "weigh_point_id", "origin_id", "buyer_id", "buyer_payee_details", "notes"]
 
-
-def _q(v):
-    if v is None:
-        return "NULL"
-    if isinstance(v, bool):
-        return "true" if v else "false"
-    if isinstance(v, (int, float)):
-        return str(v)
-    return "'" + str(v).replace("'", "''") + "'"
-
-
-def _now():
-    return dt.datetime.utcnow().isoformat()
-
-
-def _record_history(booking_id, action, changed_by, changed_by_email, old_data, new_data):
-    run(f"""INSERT INTO {AUD}.booking_history (id, booking_id, action, changed_by, changed_by_email, changed_at, old_data, new_data)
-        VALUES ({_q(str(uuid.uuid4()))}, {_q(booking_id)}, {_q(action)}, {_q(changed_by)}, {_q(changed_by_email)},
-                {_q(_now())}, {_q(json.dumps(old_data) if old_data is not None else None)},
-                {_q(json.dumps(new_data, default=str) if new_data is not None else None)})""")
-
-
-PRICING_FIELDS = ("price_per_kg", "price_per_kg_numeric", "price_variation", "buyer_payee_details")
+def _now() -> dt.datetime:
+    return dt.datetime.utcnow()
 
 
 def _mask_pricing(row: dict, commercial: bool) -> dict:
@@ -74,13 +55,36 @@ def _mask_pricing(row: dict, commercial: bool) -> dict:
     return r
 
 
+def _history_stmt():
+    return text("""INSERT INTO booking_history
+        (id, booking_id, action, changed_by, changed_by_email, changed_at, old_data, new_data)
+        VALUES (:id, :booking_id, :action, :changed_by, :changed_by_email, :changed_at, :old_data, :new_data)""")
+
+
+def _history_params(booking_id, action, changed_by, changed_by_email, old_data, new_data):
+    return {
+        "id": str(uuid.uuid4()), "booking_id": booking_id, "action": action,
+        "changed_by": changed_by, "changed_by_email": changed_by_email, "changed_at": _now(),
+        # Postgres returns native Decimal/date/datetime in the expanded row, so
+        # both snapshots need default=str (the Delta version got all-strings back
+        # and could skip it on old_data).
+        "old_data": json.dumps(old_data, default=str) if old_data is not None else None,
+        "new_data": json.dumps(new_data, default=str) if new_data is not None else None,
+    }
+
+
+def _expanded(conn, booking_id):
+    row = conn.execute(text("SELECT * FROM booking_expanded WHERE id = :id"), {"id": booking_id}).mappings().first()
+    return dict(row) if row else None
+
+
 @router.get("/bookings")
 def list_bookings(persona: str = "exec"):
-    """All non-deleted bookings, expanded, sorted most-recently-updated first
-    (the reference app filters/searches this client-side). Pricing fields are
-    masked server-side (not just hidden client-side) when the persona lacks
-    commercial visibility, matching the Unity Catalog ABAC policy."""
-    rows = run(f"""SELECT * FROM {G}.booking_expanded ORDER BY updated_at DESC NULLS LAST, created_at DESC LIMIT 5000""")
+    """All non-deleted bookings, expanded, most-recently-updated first (the
+    reference app filters/searches client-side). Pricing is masked server-side
+    when the persona lacks commercial visibility, matching the persona policy."""
+    rows = pg.query("""SELECT * FROM booking_expanded
+        ORDER BY updated_at DESC NULLS LAST, created_at DESC LIMIT 5000""")
     commercial = persona in ("exec", "procurement")
     rows = [_mask_pricing(r, commercial) for r in rows]
     return {"persona": persona, "commercial_visible": commercial, "bookings": rows}
@@ -88,30 +92,27 @@ def list_bookings(persona: str = "exec"):
 
 @router.get("/bookings/lookups")
 def lookups():
+    active = "SELECT id, name, active FROM {} ORDER BY name"
     return {
         "properties": PROPERTIES,
         "statuses": STATUSES,
         "delivery_days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
-        "agents": run(f"SELECT id, name FROM {CP}.agents WHERE active = true ORDER BY name"),
-        "vendors": run(f"SELECT id, name FROM {CP}.vendors WHERE active = true ORDER BY name"),
-        "payees": run(f"SELECT id, name FROM {CP}.payees WHERE active = true ORDER BY name"),
-        "programs": run(f"SELECT id, name FROM {REF}.programs WHERE active = true ORDER BY name"),
-        "weigh_points": run(f"SELECT id, name FROM {REF}.weigh_points WHERE active = true ORDER BY name"),
-        "origins": run(f"SELECT id, name FROM {REF}.origins WHERE active = true ORDER BY name"),
-        "buyers": run(f"SELECT id, name FROM {CP}.buyers WHERE active = true ORDER BY name"),
+        "agents": pg.query(active.format("agents")),
+        "vendors": pg.query(active.format("vendors")),
+        "payees": pg.query(active.format("payees")),
+        "programs": pg.query(active.format("programs")),
+        "weigh_points": pg.query(active.format("weigh_points")),
+        "origins": pg.query(active.format("origins")),
+        "buyers": pg.query(active.format("buyers")),
     }
 
 
 @router.get("/bookings/{booking_id}")
 def get_booking(booking_id: str):
-    """Always returns unmasked pricing, deliberately - this endpoint feeds the
-    edit form (there are no per-field write permissions in the reference app;
-    see docs/SPEC.md sec 5 "no user roles or permissions for the prototype").
-    If it honoured a client-supplied persona, a persona without commercial
-    visibility would submit a masked/blank price back on save and silently
-    overwrite the real one. The persona-masking demo lives in the read-only
-    Bookings list and Governance tab instead, via list_bookings() below."""
-    b = one(f"SELECT * FROM {G}.booking_expanded WHERE id = {_q(booking_id)}")
+    """Always returns unmasked pricing, deliberately - this feeds the edit form
+    (see docs/SPEC.md sec 5). The persona-masking demo lives in the read-only
+    Bookings list and Governance tab instead."""
+    b = pg.one("SELECT * FROM booking_expanded WHERE id = :id", {"id": booking_id})
     if not b:
         raise HTTPException(404, "Booking not found")
     return b
@@ -119,8 +120,8 @@ def get_booking(booking_id: str):
 
 @router.get("/bookings/{booking_id}/history")
 def get_history(booking_id: str):
-    rows = run(f"""SELECT id, booking_id, action, changed_by, changed_by_email, changed_at, old_data, new_data
-        FROM {AUD}.booking_history WHERE booking_id = {_q(booking_id)} ORDER BY changed_at DESC""")
+    rows = pg.query("""SELECT id, booking_id, action, changed_by, changed_by_email, changed_at, old_data, new_data
+        FROM booking_history WHERE booking_id = :id ORDER BY changed_at DESC""", {"id": booking_id})
     return {"history": rows}
 
 
@@ -163,11 +164,14 @@ def create_booking(req: BookingIn, request: Request):
     booking_id = str(uuid.uuid4())
     now = _now()
     data = req.model_dump()
+    params = {f: data[f] for f in FIELDS}
+    params.update(id=booking_id, created_by=actor[0], created_by_email=actor[1], created_at=now, updated_at=now)
     cols = ["id", *FIELDS, "created_by", "created_by_email", "created_at", "updated_at"]
-    vals = [_q(booking_id), *[_q(data[f]) for f in FIELDS], _q(actor[0]), _q(actor[1]), _q(now), _q(now)]
-    run(f"INSERT INTO {BK}.cattle_bookings ({', '.join(cols)}) VALUES ({', '.join(vals)})")
-    new_row = one(f"SELECT * FROM {G}.booking_expanded WHERE id = {_q(booking_id)}")
-    _record_history(booking_id, "create", *actor, None, new_row)
+    placeholders = ", ".join(f":{c}" for c in cols)
+    with pg.tx() as conn:
+        conn.execute(text(f"INSERT INTO cattle_bookings ({', '.join(cols)}) VALUES ({placeholders})"), params)
+        new_row = _expanded(conn, booking_id)
+        conn.execute(_history_stmt(), _history_params(booking_id, "create", *actor, None, new_row))
     return new_row
 
 
@@ -175,15 +179,18 @@ def create_booking(req: BookingIn, request: Request):
 def update_booking(booking_id: str, req: BookingIn, request: Request):
     _validate(req)
     actor = _actor(request)
-    previous = one(f"SELECT * FROM {G}.booking_expanded WHERE id = {_q(booking_id)}")
-    if not previous:
-        raise HTTPException(404, "Booking not found")
     data = req.model_dump()
-    sets = [f"{f} = {_q(data[f])}" for f in FIELDS]
-    sets += [f"modified_by = {_q(actor[0])}", f"modified_by_email = {_q(actor[1])}", f"updated_at = {_q(_now())}"]
-    run(f"UPDATE {BK}.cattle_bookings SET {', '.join(sets)} WHERE id = {_q(booking_id)}")
-    new_row = one(f"SELECT * FROM {G}.booking_expanded WHERE id = {_q(booking_id)}")
-    _record_history(booking_id, "update", *actor, previous, new_row)
+    with pg.tx() as conn:
+        previous = _expanded(conn, booking_id)
+        if not previous:
+            raise HTTPException(404, "Booking not found")
+        params = {f: data[f] for f in FIELDS}
+        params.update(id=booking_id, modified_by=actor[0], modified_by_email=actor[1], updated_at=_now())
+        sets = ", ".join(f"{f} = :{f}" for f in FIELDS)
+        sets += ", modified_by = :modified_by, modified_by_email = :modified_by_email, updated_at = :updated_at"
+        conn.execute(text(f"UPDATE cattle_bookings SET {sets} WHERE id = :id"), params)
+        new_row = _expanded(conn, booking_id)
+        conn.execute(_history_stmt(), _history_params(booking_id, "update", *actor, previous, new_row))
     return new_row
 
 
@@ -191,13 +198,16 @@ def update_booking(booking_id: str, req: BookingIn, request: Request):
 def delete_booking(booking_id: str, request: Request):
     """Soft delete only - sets deleted_at, never removes the row."""
     actor = _actor(request)
-    previous = one(f"SELECT * FROM {G}.booking_expanded WHERE id = {_q(booking_id)}")
-    if not previous:
-        raise HTTPException(404, "Booking not found")
     now = _now()
-    run(f"UPDATE {BK}.cattle_bookings SET deleted_at = {_q(now)}, updated_at = {_q(now)} WHERE id = {_q(booking_id)}")
-    deleted_row = one(f"SELECT * FROM {BK}.cattle_bookings WHERE id = {_q(booking_id)}")
-    _record_history(booking_id, "delete", *actor, previous, deleted_row)
+    with pg.tx() as conn:
+        previous = _expanded(conn, booking_id)
+        if not previous:
+            raise HTTPException(404, "Booking not found")
+        conn.execute(text("UPDATE cattle_bookings SET deleted_at = :now, updated_at = :now WHERE id = :id"),
+                     {"now": now, "id": booking_id})
+        deleted_row = dict(conn.execute(text("SELECT * FROM cattle_bookings WHERE id = :id"),
+                                        {"id": booking_id}).mappings().first())
+        conn.execute(_history_stmt(), _history_params(booking_id, "delete", *actor, previous, deleted_row))
     return {"ok": True}
 
 
@@ -205,16 +215,18 @@ def delete_booking(booking_id: str, request: Request):
 def duplicate_booking(booking_id: str, request: Request):
     """Copies all business fields, resets status to Draft, strips audit/identity fields."""
     actor = _actor(request)
-    source = one(f"SELECT * FROM {G}.booking_expanded WHERE id = {_q(booking_id)}")
-    if not source:
-        raise HTTPException(404, "Booking not found")
     new_id = str(uuid.uuid4())
     now = _now()
-    data = {f: source.get(f) for f in FIELDS}
-    data["status"] = "Draft"
-    cols = ["id", *FIELDS, "created_by", "created_by_email", "created_at", "updated_at"]
-    vals = [_q(new_id), *[_q(data[f]) for f in FIELDS], _q(actor[0]), _q(actor[1]), _q(now), _q(now)]
-    run(f"INSERT INTO {BK}.cattle_bookings ({', '.join(cols)}) VALUES ({', '.join(vals)})")
-    new_row = one(f"SELECT * FROM {G}.booking_expanded WHERE id = {_q(new_id)}")
-    _record_history(new_id, "duplicate", *actor, source, new_row)
+    with pg.tx() as conn:
+        source = _expanded(conn, booking_id)
+        if not source:
+            raise HTTPException(404, "Booking not found")
+        params = {f: source.get(f) for f in FIELDS}
+        params["status"] = "Draft"
+        params.update(id=new_id, created_by=actor[0], created_by_email=actor[1], created_at=now, updated_at=now)
+        cols = ["id", *FIELDS, "created_by", "created_by_email", "created_at", "updated_at"]
+        placeholders = ", ".join(f":{c}" for c in cols)
+        conn.execute(text(f"INSERT INTO cattle_bookings ({', '.join(cols)}) VALUES ({placeholders})"), params)
+        new_row = _expanded(conn, new_id)
+        conn.execute(_history_stmt(), _history_params(new_id, "duplicate", *actor, source, new_row))
     return new_row

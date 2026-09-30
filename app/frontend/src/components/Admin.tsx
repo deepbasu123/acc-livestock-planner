@@ -8,13 +8,13 @@ export default function Admin() {
   return (
     <div className="space-y-4 fadein">
       <div>
-        <h2 className="text-lg font-semibold text-brand-ink" style={{ fontFamily: "'Spectral', serif" }}>Master Data</h2>
-        <p className="text-xs text-gray-500 mt-0.5">Manage the dropdown values used in bookings. Only active values appear in the booking form; historical bookings keep their original reference either way.</p>
+        <h2 className="acc-title">Master data</h2>
+        <p className="text-sm text-gray-500 mt-1">Manage the dropdown values used in bookings. Only active values appear in the booking form; historical bookings keep their original reference either way.</p>
       </div>
       <div role="tablist" className="flex flex-wrap gap-1 border-b border-brand-border">
         {MASTER_TABLES.map(t => (
           <button key={t} role="tab" aria-selected={active === t} onClick={() => setActive(t)}
-            className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px transition
+            className={`min-h-11 px-3 text-sm font-medium border-b-2 -mb-px transition
               ${active === t ? 'text-brand-ink border-accent' : 'text-gray-500 border-transparent hover:text-brand-ink'}`}>
             {MASTER_LABELS[t]}
           </button>
@@ -62,7 +62,7 @@ function MasterPanel({ table }: { table: MasterTable }) {
       <div className="flex items-center justify-between p-3 border-b border-brand-border">
         <h3 className="font-semibold text-sm text-brand-ink">{MASTER_LABELS[table]} {rows ? `(${rows.length})` : ''}</h3>
         <button onClick={() => { setEditing(null); setName(''); setOpen(true) }}
-          className="flex items-center gap-1.5 bg-brand hover:bg-branddark text-white text-xs font-semibold px-3 py-1.5 rounded">
+          className="min-h-11 flex items-center gap-1.5 bg-brand hover:bg-branddark text-white text-sm font-semibold px-3 rounded">
           <Plus size={14} /> Add
         </button>
       </div>
@@ -74,10 +74,10 @@ function MasterPanel({ table }: { table: MasterTable }) {
       ) : (
         <ul className="divide-y divide-gray-100">
           {rows.map(row => (
-            <li key={row.id} className="flex items-center justify-between gap-3 px-4 py-2.5">
+            <li key={row.id} className="flex items-center justify-between gap-3 px-4 min-h-12">
               <span className={`text-sm min-w-0 truncate ${row.active ? 'text-brand-ink' : 'text-gray-400 line-through'}`}>{row.name}</span>
               <div className="flex items-center gap-3 shrink-0">
-                <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer">
+                <label className="flex items-center gap-1.5 min-h-11 text-sm text-gray-500 cursor-pointer">
                   <input type="checkbox" checked={row.active} onChange={() => toggleActive(row)} className="accent-brand" /> Active
                 </label>
                 <button onClick={() => { setEditing(row); setName(row.name); setOpen(true) }} aria-label={`Rename ${row.name}`}
@@ -97,8 +97,8 @@ function MasterPanel({ table }: { table: MasterTable }) {
             <input autoFocus value={name} onChange={e => setName(e.target.value)} placeholder="Name" className="acc-input"
               onKeyDown={e => e.key === 'Enter' && save()} />
             <div className="flex justify-end gap-2 mt-4">
-              <button onClick={() => setOpen(false)} className="px-3 py-2 text-sm text-gray-500 hover:text-brand-ink">Cancel</button>
-              <button onClick={save} disabled={busy} className="px-4 py-2 bg-brand hover:bg-branddark disabled:opacity-50 text-white text-sm font-semibold rounded">Save</button>
+              <button onClick={() => setOpen(false)} className="min-h-11 px-3 text-sm text-gray-500 hover:text-brand-ink">Cancel</button>
+              <button onClick={save} disabled={busy} className="min-h-11 px-4 bg-brand hover:bg-branddark disabled:opacity-50 text-white text-sm font-semibold rounded">Save</button>
             </div>
           </div>
         </div>

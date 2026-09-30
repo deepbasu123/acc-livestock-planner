@@ -38,11 +38,11 @@ const MORE_TABS: TabId[] = ['forecast', 'governance', 'genie', 'architecture']
 
 function Logo() {
   return (
-    <div className="flex items-center gap-3">
-      <img src="/logo.png" alt="Australian Country Choice" className="h-11 w-auto shrink-0" />
-      <div className="hidden sm:block leading-tight">
-        <div className="font-bold text-[15px] text-brand-ink" style={{ fontFamily: "'Spectral', serif" }}>ACC Livestock Planner</div>
-        <div className="text-[10px] text-gray-400 tracking-wide uppercase mt-0.5">Australian Country Choice</div>
+    <div className="flex items-center gap-3 min-w-0">
+      <img src="/logo.png" alt="Australian Country Choice" className="h-10 sm:h-11 w-auto shrink-0" />
+      <div className="hidden sm:block leading-tight min-w-0">
+        <div className="font-semibold text-[15px] text-brand-ink tracking-tight">ACC Livestock Planner</div>
+        <div className="text-[11px] text-gray-500 mt-0.5">Australian Country Choice</div>
       </div>
     </div>
   )
@@ -57,7 +57,6 @@ export default function App() {
   const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => { fetch('/api/config').then(r => r.json()).then(setCfg).catch(() => {}) }, [])
-  const activeLabel = BLUEPRINT.tabs.find(t => t.id === view)?.label ?? ''
 
   const openNewBooking = (property?: Property) => setWorkspace({ kind: 'new', property })
   const openBooking = (id: string) => setWorkspace({ kind: 'edit', id })
@@ -86,8 +85,8 @@ export default function App() {
         return (
           <button key={t.id} onClick={() => goTo(t.id)}
             aria-current={active ? 'page' : undefined}
-            className={`flex items-center gap-1.5 px-3 py-2.5 text-[13px] font-semibold uppercase tracking-wide whitespace-nowrap
-              border-b-2 transition-colors
+            className={`flex items-center gap-1.5 px-3 py-2.5 text-[13px] font-medium whitespace-nowrap
+              border-b-2 transition-colors duration-200 ease-acc
               ${active ? 'text-brand-ink border-accent' : 'text-gray-500 border-transparent hover:text-brand hover:border-brand-border'}`}>
             {Icon && <Icon size={15} />} {t.label}
           </button>
@@ -109,14 +108,14 @@ export default function App() {
           const active = view === id && !workspace
           return (
             <button key={id} onClick={() => goTo(id)} aria-current={active ? 'page' : undefined}
-              className={`flex-1 min-h-[56px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-medium
+              className={`flex-1 min-h-12 flex flex-col items-center justify-center gap-0.5 text-[11px] font-medium
                 ${active ? 'text-brand' : 'text-gray-500'}`}>
               <Icon size={20} />{label}
             </button>
           )
         })}
         <button onClick={() => setMoreOpen(true)} aria-haspopup="true" aria-expanded={moreOpen}
-          className={`flex-1 min-h-[56px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-medium
+          className={`flex-1 min-h-12 flex flex-col items-center justify-center gap-0.5 text-[11px] font-medium
             ${isMoreActive ? 'text-brand' : 'text-gray-500'}`}>
           <MoreHorizontal size={20} />More
         </button>
@@ -150,13 +149,14 @@ export default function App() {
 
   const personaSwitch = () => (
     <div className="flex items-center gap-2 sm:gap-3">
-      <span className="hidden md:inline text-[11px] uppercase tracking-wide text-gray-400">Viewing as</span>
+      <span className="hidden md:inline text-[12px] text-gray-500">Viewing as</span>
       <div className="flex bg-gray-100 rounded-lg p-0.5">
         {PERSONAS.map(p => (
           <button key={p.id} onClick={() => setPersona(p.id)}
-            className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition
+            className={`min-h-11 px-2.5 sm:px-3 rounded-md text-xs font-medium transition duration-150 ease-acc
               ${persona === p.id ? 'bg-brand text-white' : 'text-gray-500 hover:text-brand-ink'}`}>
-            {p.label}
+            <span className="sm:hidden">{p.id === 'exec' ? 'Exec' : p.id === 'procurement' ? 'Procure' : 'Ops'}</span>
+            <span className="hidden sm:inline">{p.label}</span>
           </button>
         ))}
       </div>
@@ -179,10 +179,10 @@ export default function App() {
   )
 
   return (
-    <div className="flex flex-col h-screen bg-brand-bg text-brand-ink">
+    <div className="flex flex-col min-h-[100dvh] h-[100dvh] bg-brand-bg text-brand-ink">
       <a href="#acc-main" className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:m-2 focus:px-3 focus:py-2 focus:bg-white focus:border focus:border-brand focus:rounded">Skip to content</a>
       <header className="shrink-0 bg-white border-b border-brand-border">
-        <div className="flex items-center justify-between gap-3 px-4 sm:px-6 h-16">
+        <div className="flex items-center justify-between gap-3 px-4 sm:px-6 h-14 sm:h-16">
           <Logo />
           <div className="flex items-center gap-3">
             <div className="hidden sm:block">{brandLinks()}</div>
@@ -193,15 +193,14 @@ export default function App() {
           {navButtons()}
         </div>
       </header>
-      <main id="acc-main" className="flex-1 overflow-y-auto p-4 sm:p-6 pb-20 md:pb-6">
+      <main id="acc-main" className="flex-1 overflow-y-auto p-4 sm:p-6 pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-6">
+        <div className="mx-auto w-full max-w-[1400px]">
         {workspace ? (
           <BookingWorkspace mode={workspace} onDone={closeWorkspace} onBack={() => setWorkspace(null)} />
         ) : (
-          <>
-            <div className="text-xs text-gray-400 mb-3 hidden sm:block">{activeLabel}</div>
-            {renderView(view)}
-          </>
+          renderView(view)
         )}
+        </div>
       </main>
       {bottomTabBar()}
       {moreOpen && moreSheet()}

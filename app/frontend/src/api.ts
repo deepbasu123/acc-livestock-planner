@@ -77,20 +77,37 @@ export const MASTER_LABELS: Record<MasterTable, string> = {
   weigh_points: 'Weigh Points', origins: 'Origins', buyers: 'Buyers',
 }
 
+function asNum(v: any): number | null {
+  if (v == null || v === '') return null
+  const n = Number(v)
+  return Number.isFinite(n) ? n : null
+}
+
+function coerceBooking(b: any): BookingExpanded {
+  return {
+    ...b,
+    head_count: asNum(b.head_count) ?? 0,
+    price_per_kg_numeric: asNum(b.price_per_kg_numeric),
+  }
+}
+
 export const api = {
   config: () => get('/api/config'),
 
-  // Bookings
-  bookings: (persona: Persona = 'exec'): Promise<{ bookings: BookingExpanded[]; commercial_visible: boolean }> =>
-    get(`/api/bookings?persona=${PERSONA_WIRE[persona]}`),
+  // Bookings. Databricks SQL JSON_ARRAY returns every cell as a string, so
+  // head_count arrives as "68" — coerce once here so dashboard sums stay numeric.
+  bookings: async (persona: Persona = 'exec'): Promise<{ bookings: BookingExpanded[]; commercial_visible: boolean }> => {
+    const r = await get(`/api/bookings?persona=${PERSONA_WIRE[persona]}`)
+    return { ...r, bookings: (r.bookings || []).map(coerceBooking) }
+  },
   // Always unmasked - this feeds the edit form. See bookings.py get_booking().
-  booking: (id: string) => get(`/api/bookings/${id}`),
+  booking: async (id: string) => coerceBooking(await get(`/api/bookings/${id}`)),
   bookingHistory: (id: string) => get(`/api/bookings/${id}/history`),
   lookups: () => get('/api/bookings/lookups'),
-  createBooking: (b: BookingInput): Promise<BookingExpanded> => send('POST', '/api/bookings', b),
-  updateBooking: (id: string, b: BookingInput): Promise<BookingExpanded> => send('PATCH', `/api/bookings/${id}`, b),
+  createBooking: async (b: BookingInput): Promise<BookingExpanded> => coerceBooking(await send('POST', '/api/bookings', b)),
+  updateBooking: async (id: string, b: BookingInput): Promise<BookingExpanded> => coerceBooking(await send('PATCH', `/api/bookings/${id}`, b)),
   deleteBooking: (id: string) => send('DELETE', `/api/bookings/${id}`),
-  duplicateBooking: (id: string): Promise<BookingExpanded> => send('POST', `/api/bookings/${id}/duplicate`),
+  duplicateBooking: async (id: string): Promise<BookingExpanded> => coerceBooking(await send('POST', `/api/bookings/${id}/duplicate`)),
 
   // Master data
   // The Databricks SQL Statement API returns every cell as a string (including
@@ -119,5 +136,6 @@ export const api = {
 }
 
 export const num = (n: any) => {
-  const v = Number(n); return isNaN(v) ? '-' : v.toLocaleString('en-AU')
+  const v = Number(n)
+  return Number.isFinite(v) ? v.toLocaleString('en-AU') : '-'
 }

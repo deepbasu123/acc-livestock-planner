@@ -61,15 +61,15 @@ export default function BookingsList({ persona, onOpen, onNew }:
     <div className="space-y-4 fadein">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
-          <h2 className="text-lg font-semibold text-brand-ink" style={{ fontFamily: "'Spectral', serif" }}>Bookings</h2>
-          <p className="text-xs text-gray-500 mt-0.5">{filtered.length} of {bookings.length} records</p>
+          <h2 className="acc-title">Bookings</h2>
+          <p className="text-sm text-gray-500 mt-1">{filtered.length} of {bookings.length} records</p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => exportBookingsToExcel(filtered)}
-            className="flex items-center gap-1.5 border border-brand-border hover:border-brand text-brand-ink text-sm font-semibold px-3 py-2 rounded">
+            className="min-h-11 flex items-center gap-1.5 border border-brand-border hover:border-brand text-brand-ink text-sm font-semibold px-3 rounded">
             <Download size={15} /> <span className="hidden sm:inline">Export</span>
           </button>
-          <button onClick={onNew} className="flex items-center gap-1.5 bg-brand hover:bg-branddark text-white text-sm font-semibold px-3.5 py-2 rounded">
+          <button onClick={onNew} className="min-h-11 flex items-center gap-1.5 bg-brand hover:bg-branddark text-white text-sm font-semibold px-3.5 rounded">
             <Plus size={16} /> New
           </button>
         </div>
@@ -104,7 +104,7 @@ export default function BookingsList({ persona, onOpen, onNew }:
                 <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${STATUS_STYLE[b.status]}`}>{b.status}</span>
               </div>
               <div className="mt-2 grid grid-cols-3 gap-2 text-xs text-gray-500">
-                <div><div className="text-brand-ink font-semibold">{b.head_count}</div>Head</div>
+                <div><div className="text-brand-ink font-semibold acc-num">{b.head_count}</div>Head</div>
                 <div><div className="text-brand-ink font-semibold truncate">{b.week_number ?? '—'}</div>Week</div>
                 <div><div className="text-brand-ink font-semibold truncate">{b.delivery_day || '—'}</div>Delivery</div>
               </div>
@@ -157,7 +157,7 @@ export default function BookingsList({ persona, onOpen, onNew }:
 
 function FilterSelect({ label, value, onChange, options }: { label: string; value: string; onChange: (v: string) => void; options: readonly string[] }) {
   return (
-    <select value={value} onChange={e => onChange(e.target.value)} aria-label={label} className="acc-input text-xs h-10">
+    <select value={value} onChange={e => onChange(e.target.value)} aria-label={label} className="acc-input min-h-11">
       <option value={ALL}>All {label.toLowerCase()}</option>
       {options.map(o => <option key={o} value={o}>{o}</option>)}
     </select>
@@ -165,11 +165,11 @@ function FilterSelect({ label, value, onChange, options }: { label: string; valu
 }
 function MasterFilter({ label, value, onChange, rows }: { label: string; value: string; onChange: (v: string) => void; rows: { id: string; name: string }[] }) {
   return (
-    <select value={value} onChange={e => onChange(e.target.value)} aria-label={label} className="acc-input text-xs h-10">
+    <select value={value} onChange={e => onChange(e.target.value)} aria-label={label} className="acc-input min-h-11">
       <option value={ALL}>All {label.toLowerCase()}s</option>
       {rows.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
     </select>
   )
 }
-function Th({ children }: { children: any }) { return <th className="px-3 py-2 font-medium text-xs uppercase tracking-wide">{children}</th> }
+function Th({ children }: { children: any }) { return <th className="px-3 py-2 font-medium text-xs text-gray-500">{children}</th> }
 function Td({ children, className }: { children: any; className?: string }) { return <td className={`px-3 py-2 align-middle ${className ?? ''}`}>{children}</td> }

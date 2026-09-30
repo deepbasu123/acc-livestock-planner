@@ -60,7 +60,7 @@ export default function Architecture() {
   return (
     <div className="space-y-5 fadein">
       <div>
-        <h2 className="text-lg font-semibold text-brand-ink" style={{ fontFamily: "'Spectral', serif" }}>How it works on Databricks</h2>
+        <h2 className="acc-title">How it works on Databricks</h2>
         <p className="text-sm text-gray-500 mt-1 max-w-3xl">
           Five operational systems land in Unity Catalog, conform to one governed booking model, and serve
           the AI/BI dashboard, the Genie space and this app — all on the Databricks Data Intelligence Platform.

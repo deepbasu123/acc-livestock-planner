@@ -42,7 +42,20 @@ def _api(profile, method, path, body=None):
     return json.loads(p.stdout) if p.stdout.strip() else {}
 
 
-def write_app_yaml(root, catalog, warehouse, genie_id, dashboard_id, llm_model):
+def write_app_yaml(root, catalog, warehouse, genie_id, dashboard_id, llm_model, lakebase=None, sp=None):
+    """Generate app.yaml for this workspace. Lakebase connection values are
+    discovered at deploy time (host/endpoint from the project, PGUSER = the app's
+    own service principal), so nothing workspace-specific is hard-coded in git."""
+    pg_env = ""
+    if lakebase:
+        pg_env = (
+            f'  - name: PGHOST\n    value: "{lakebase["host"]}"\n'
+            f'  - name: PGPORT\n    value: "5432"\n'
+            f'  - name: PGDATABASE\n    value: "{lakebase["pg_db"]}"\n'
+            f'  - name: PGUSER\n    value: "{sp}"\n'
+            f'  - name: LAKEBASE_ENDPOINT\n    value: "{lakebase["endpoint"]}"\n'
+            f'  - name: ACC_PG_SCHEMA\n    value: "{lakebase["schema"]}"\n'
+        )
     yaml = f"""command:
   - "python"
   - "-m"
@@ -54,7 +67,7 @@ def write_app_yaml(root, catalog, warehouse, genie_id, dashboard_id, llm_model):
   - "8000"
 
 env:
-  - name: ACC_CATALOG
+{pg_env}  - name: ACC_CATALOG
     value: "{catalog}"
   - name: ACC_WAREHOUSE
     value: "{warehouse}"
@@ -67,6 +80,23 @@ env:
 """
     (root / "app" / "app.yaml").write_text(yaml)
     print("  wrote app/app.yaml")
+
+
+def attach_postgres_resource(profile, name, lakebase):
+    """Attach the Lakebase branch+database as a `postgres` app resource so the SP
+    can connect (CAN_CONNECT_AND_CREATE) and mint database credentials."""
+    body = {"update_mask": "resources", "app": {"resources": [
+        {"name": "postgres", "postgres": {
+            "branch": lakebase["branch"], "database": lakebase["database"],
+            "permission": "CAN_CONNECT_AND_CREATE"}}]}}
+    f = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False)
+    json.dump(body, f)
+    f.close()
+    p = subprocess.run(["databricks", "apps", "create-update", name, "--json", f"@{f.name}", "--profile", profile],
+                       capture_output=True, text=True)
+    if p.returncode != 0:
+        raise RuntimeError(f"attach postgres resource failed: {p.stderr[:300]}")
+    print("  attached postgres app resource")
 
 
 def build_frontend(root):
@@ -182,7 +212,7 @@ def grant_sp(profile, catalog, warehouse, genie_id, sp):
 
 
 def main(profile=None, catalog=None, warehouse=None, genie_id=None, dashboard_id=None,
-         llm_model=None, app_name=None, root=None):
+         llm_model=None, app_name=None, root=None, lakebase=None):
     profile = profile or os.environ.get("ACC_PROFILE", "DEFAULT")
     catalog = catalog or os.environ.get("ACC_CATALOG", "deep_test_1_catalog")
     warehouse = warehouse or os.environ["ACC_WAREHOUSE"]
@@ -190,21 +220,25 @@ def main(profile=None, catalog=None, warehouse=None, genie_id=None, dashboard_id
     dashboard_id = dashboard_id or os.environ.get("ACC_DASHBOARD", "")
     llm_model = llm_model or os.environ.get("ACC_LLM_MODEL", "databricks-claude-sonnet-4-6")
     app_name = app_name or os.environ.get("ACC_APP_NAME", "acc-livestock-planner")
-    parent = os.environ.get("ACC_PARENT", "/Workspace/Shared/acc-livestock-planner")
+    parent = os.environ.get("ACC_PARENT", f"/Workspace/Shared/{app_name}")
     root = Path(root) if root else Path(__file__).resolve().parent.parent
 
-    write_app_yaml(root, catalog, warehouse, genie_id, dashboard_id, llm_model)
     build_frontend(root)
     ensure_app(profile, app_name)
+    # Compute must be ACTIVE before first deploy; that also populates the SP,
+    # which is both the Postgres user (PGUSER) and the grant target.
     wait_running(profile, app_name)
-    sync_and_deploy(profile, app_name, root, parent)
-    # re-fetch: the service principal is populated once the app finishes provisioning
     app = _api(profile, "get", f"/api/2.0/apps/{app_name}")
     sp = app.get("service_principal_client_id") or app.get("service_principal_name")
+    if lakebase:
+        attach_postgres_resource(profile, app_name, lakebase)
+    write_app_yaml(root, catalog, warehouse, genie_id, dashboard_id, llm_model, lakebase, sp)
+    sync_and_deploy(profile, app_name, root, parent)
     grant_sp(profile, catalog, warehouse, genie_id, sp)
     url = app.get("url") or f"(check: databricks apps get {app_name})"
-    print(f"\n  App deploying. URL: {url}")
+    print(f"\n  App deploying (Lakebase-backed). URL: {url}")
     print(f"  Service principal: {sp}")
+    print("  The app creates + seeds its Postgres schema on first startup.")
     print("  Note: for the persona demo to show UNMASKED data, add this SP and yourself to")
     print("  the workspace groups acc_exec / acc_procurement / acc_operations (see README).")
 

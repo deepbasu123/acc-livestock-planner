@@ -1,3 +1,9 @@
+# NOTE: deploy.py (app/deploy_app.py:write_app_yaml) regenerates this file at
+# deploy time with your workspace's values, so nothing workspace-specific is
+# committed. The Lakebase connection (PGHOST, PGPORT, PGDATABASE, PGUSER,
+# LAKEBASE_ENDPOINT) is filled in then - PGUSER is the app's own service
+# principal - along with the Genie space + dashboard ids the deployer created.
+# This committed copy is just a template.
 command:
   - "python"
   - "-m"
@@ -9,13 +15,9 @@ command:
   - "8000"
 
 env:
+  - name: ACC_PG_SCHEMA
+    value: "acc"
   - name: ACC_CATALOG
     value: "deep_test_1_catalog"
-  - name: ACC_WAREHOUSE
-    value: "24a85e8a3c13261d"
-  - name: ACC_GENIE_SPACE
-    value: "01f1b334c35a158aa9ff654459f8cea4"
-  - name: ACC_DASHBOARD
-    value: "01f1b334cb4d1070a96ebfd4e8fab051"
   - name: ACC_LLM_MODEL
     value: "databricks-claude-sonnet-4-6"
